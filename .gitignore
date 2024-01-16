@@ -4,3 +4,4 @@ kafka-docker
 config*.json
 .sshignore
 ssh_push.sh
+__pycache__

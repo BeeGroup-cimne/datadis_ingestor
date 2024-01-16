@@ -5,7 +5,7 @@ import utils
 
 
 class InfrastructuresPlugin(DatadisInputPlugIn):
-    config = utils.config.read_config()
+    config = utils.config.read_config("plugins/infraestructures/config_infra.json")
 
     @classmethod
     def get_users(cls):

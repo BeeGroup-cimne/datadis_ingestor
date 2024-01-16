@@ -1,11 +1,8 @@
-import asyncio
 import contextlib
-import time
 import faust
-from harmonizers.sime_harmonizer import harmonize_supplies, harmonize_timeseries
+from plugins.icaen.harmonizer_sime import harmonize_supplies, harmonize_timeseries, end_process
 import settings
 import utils
-from harmonizers.sime_harmonizer.harmonizer_sime import end_process
 import os
 config = utils.config.read_config()
 app = faust.App('datadis.harmonize', topic_disable_leader=True, broker=f"kafka://{config['kafka']['host']}:{config['kafka']['port']}")

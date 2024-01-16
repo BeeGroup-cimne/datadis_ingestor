@@ -15,7 +15,6 @@ async def store_raw(records):
         if record['collection_type'] == "timeseries":
             start = time.time()
             df = pd.DataFrame.from_records(record['data'])
-            #TODO; freq no esta be
             hbase_table = config['hbase']['raw_data'].format(data_type=record['property'], freq=record['freq'])
             row_keys = record['row_keys']
             try:

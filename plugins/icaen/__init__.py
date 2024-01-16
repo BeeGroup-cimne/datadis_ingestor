@@ -2,10 +2,11 @@ from neo4j import GraphDatabase
 import pandas as pd
 from plugins import DatadisInputPlugIn
 from utils import security, config
+import os
 
 
 class SIMEImport(DatadisInputPlugIn):
-    config = config.read_config()
+    config = config.read_config("plugins/icaen/config_icaen.json")
 
     @classmethod
     def get_users(cls):

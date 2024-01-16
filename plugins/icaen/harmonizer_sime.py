@@ -29,7 +29,7 @@ def fuzzy_locations(adm):
 
 def harmonize_supplies(data):
     df = pd.DataFrame(data)
-    config = utils.config.read_config()
+    config = utils.config.read_config("plugins/icaen/config_icaen.json")
     driver = neo4j.GraphDatabase().driver(**config['neo4j'])
     with driver.session() as session:
         cups_ens = session.run("""MATCH (n:bigg__Device)<-[:bigg__isObservedByDevice]-(:bigg__BuildingSpace)
@@ -108,7 +108,7 @@ def harmonize_timeseries(data, freq, prop):
     df['isReal'] = df['obtainMethod'].apply(lambda x: True if x == "Real" else False)
     rdf = rdflib.Graph()
     df_final = pd.DataFrame()
-    config = utils.config.read_config()
+    config = utils.config.read_config("plugins/icaen/config_icaen.json")
     driver = neo4j.GraphDatabase().driver(**config['neo4j'])
     for device_id, data_group in df.groupby("cups"):
         data_group.set_index("datetime", inplace=True)
@@ -144,7 +144,7 @@ def harmonize_timeseries(data, freq, prop):
 
 
 def end_process():
-    config = utils.config.read_config()
+    config = utils.config.read_config("plugins/icaen/config_icaen.json")
     driver = neo4j.GraphDatabase.driver(**config['neo4j'])
     with driver.session() as session:
         session.run("""Match(n:bigg__UtilityPointOfDelivery) 
