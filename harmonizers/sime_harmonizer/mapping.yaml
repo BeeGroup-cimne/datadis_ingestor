@@ -1,0 +1,55 @@
+prefixes:
+  bigg: http://bigg-project.eu/ontology#
+  icaen: https://icaen.cat#
+  geonames: https://www.geonames.org/ontology#
+  geodata: https://sws.geonames.org/
+mappings:
+  space:
+    sources:
+      - [ 'data.json~jsonpath', '$.supplies[*]' ]
+    s: icaen:BUILDINGSPACE-$(ens)
+    po:
+      - [ bigg:isObservedByDevice, icaen:DEVICE-DatadisSource-$(cups)]
+      - [ bigg:bigg__hasUtilityPointOfDelivery, icaen:SUPPLY-$(cups)]
+
+  devices:
+    sources:
+      - [ 'data.json~jsonpath', '$.supplies[*]' ]
+    s: icaen:DEVICE-DatadisSource-$(cups)
+    po:
+      - [ a, bigg:Device ]
+      - [ a, bigg:DataProvider ]
+      - [ a, bigg:Element ]
+      - [ a, bigg:Thing ]
+      - [ bigg:deviceName, $(cups) ]
+      - [ bigg:hasDeviceType, bigg:Meter.EnergyMeter.Electricity ]
+      - [ bigg:contractedPower, $(contractedPowerkW) ]
+      - [ bigg:tension, $(tension) ]
+      - [ bigg:tariff, $(codeFare) ]
+      - [ bigg:hasDeviceLocationInfo, icaen:LOCATION-DEVICE-DatadisSource-$(cups) ]
+      - [ bigg:source, "DatadisSource" ]
+      - [ bigg:nif,  $(nif)]
+
+  upods:
+    sources:
+      - [ 'data.json~jsonpath', '$.supplies[*]' ]
+    s: icaen:SUPPLY-$(supply_name)
+    po:
+      - [ a, bigg:UtilityPointOfDelivery ]
+      - [ a, bigg:Thing ]
+      - [ bigg:pointOfDeliveryIDFromOrganization, $(supply_name) ]
+      - [ bigg:hasUtilityType, bigg:ElectricUtility ]
+      - [ bigg:hasDevice, icaen:DEVICE-DatadisSource-$(cups) ]
+      - [ bigg:updateSupply, $(update_date), xsd:dateTime]
+
+  location:
+    sources:
+      - [ 'data.json~jsonpath', '$.supplies[*]' ]
+    s: icaen:LOCATION-DEVICE-DatadisSource-$(cups)
+    po:
+      - [ a, bigg:LocationInfo ]
+      - [ bigg:addressPostalCode, $(postalCode) ]
+      - [ bigg:hasAddressCity, geodata:$(municipality)/]
+      - [ bigg:hasAddressProvince, geodata:$(province)/ ]
+
+

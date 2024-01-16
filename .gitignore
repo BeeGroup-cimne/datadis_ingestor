@@ -1,0 +1,6 @@
+venv
+*-data
+kafka-docker
+config*.json
+.sshignore
+ssh_push.sh
