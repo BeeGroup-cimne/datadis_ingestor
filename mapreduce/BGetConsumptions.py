@@ -231,7 +231,7 @@ class GetConsumption(Reduce):
             date_ini = datetime.strptime(supply['validDateFrom'], '%Y/%m/%d')
         except ValueError:
             has_init_date = False
-            date_ini = datetime(2018, 1, 1)
+            date_ini = datetime.today().replace(hour=0, day=1, minute=0, second=0, microsecond=0) - relativedelta(months=23)
         now = datetime.today().date() + relativedelta(day=31, hour=23, minute=59, second=59)
         try:
             date_end = datetime.strptime(supply['validDateTo'][:-2], '%Y/%m') + \
@@ -259,8 +259,7 @@ class GetConsumption(Reduce):
                             "date_ini_block": date_ini_block,
                             "date_end_block": date_end_block,
                             "values": 0,
-                            "total": type_params['elements_in_period'](date_ini_block, date_end_block +
-                                                                       relativedelta(seconds=1)),
+                            "total": type_params['elements_in_period'](date_ini_block, date_end_block),
                             "retries": 6,
                         }
                     })

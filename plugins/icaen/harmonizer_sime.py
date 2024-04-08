@@ -18,7 +18,7 @@ time_to_timedelta = {
 
 def fuzzy_locations(adm):
     g = rdflib.Graph()
-    g.parse("harmonizers/sime_harmonizer/all-geonames-rdf-clean-ES.rdf", format="xml")
+    g.parse("plugins/icaen/all-geonames-rdf-clean-ES.rdf", format="xml")
     res = g.query(f"""SELECT ?name ?b WHERE {{
             ?b gn:name ?name.
             ?b gn:featureCode <https://www.geonames.org/ontology#{adm}> .
@@ -32,12 +32,13 @@ def harmonize_supplies(data):
     config = utils.config.read_config("plugins/icaen/config_icaen.json")
     driver = neo4j.GraphDatabase().driver(**config['neo4j'])
     with driver.session() as session:
-        cups_ens = session.run("""MATCH (n:bigg__Device)<-[:bigg__isObservedByDevice]-(:bigg__BuildingSpace)
-        <-[:bigg__hasSpace]-(b:bigg__Building) 
-        RETURN distinct n.bigg__deviceName as ens, b.bigg__buildingIDFromOrganization as cups""").data()
+        cups_ens = session.run("""MATCH (n:bigg__UtilityPointOfDelivery)<-[:bigg__hasUtilityPointOfDelivery]-
+        (:bigg__BuildingSpace)<-[:bigg__hasSpace]-(b:bigg__Building) 
+        RETURN distinct n.bigg__pointOfDeliveryIDFromOrganization as cups, b.bigg__buildingIDFromOrganization 
+        as ens""").data()
         cups_ens = {v['ens']: v['cups'] for v in cups_ens}
-    df['ens'] = df.cups.map(cups_ens)
     df['supply_name'] = df['cups'].str[:20]
+    df['ens'] = df.supply_name.map(cups_ens)
     locations_mun = fuzzy_locations("A.ADM3")
     locations_prov = fuzzy_locations("A.ADM2")
     municipalities = df['municipality'].unique()
@@ -47,10 +48,8 @@ def harmonize_supplies(data):
     df['municipality'] = df['municipality'].map(fuzzy_map_mun)
     df['province'] = df['province'].map(fuzzy_map_prov)
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
-    map_and_print({"supplies": df.to_dict(orient="records")},
-                 "harmonizers/sime_harmonizer/mapping.yaml", config)
     map_and_save({"supplies": df.to_dict(orient="records")},
-                 "harmonizers/sime_harmonizer/mapping.yaml", config)
+                 "plugins/icaen/mapping.yaml", config)
     with driver.session() as session:
 
         session.run("""MATCH (n:bigg__Device) 
