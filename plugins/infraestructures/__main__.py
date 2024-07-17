@@ -1,6 +1,6 @@
 import contextlib
 import faust
-from plugins.icaen.harmonizer_sime import harmonize_supplies, harmonize_timeseries, end_process
+from plugins.infraestructures.harmonizer_infra import harmonize_supplies, harmonize_timeseries, end_process
 import settings
 import beelib
 import os
@@ -19,7 +19,7 @@ harmonize_supply = app.topic('datadis.harmonize_supplies',  internal=True, parti
 @app.agent(static)
 async def join_supplies(records):
     async for record in records:
-        if "sime" not in record['kwargs']['dblist']:
+        if "icat" not in record['kwargs']['dblist']:
             continue
         if record['kwargs']['collection_type'] == "FINAL_MESSAGE":
             print("FINAL_MESSAGE received")
@@ -55,9 +55,9 @@ async def process_table(records):
 @app.agent(ts)
 async def process_ts(records):
     async for record in records:
-        if "sime" not in record['kwargs']['dblist']:
+        if "icat" not in record['kwargs']['dblist']:
             continue
-        if record['kwargs']['property'] not in ["EnergyConsumptionGridElectricity"]:
+        if record['kwargs']['property'] not in ["energy-active"]:
             continue
         harmonize_timeseries(record['data'], record['kwargs']['freq'], record['kwargs']['property'])
 

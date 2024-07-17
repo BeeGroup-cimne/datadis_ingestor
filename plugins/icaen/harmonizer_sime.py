@@ -5,10 +5,11 @@ import pandas as pd
 import rdflib
 import hashlib
 from thefuzz import process
-import utils.hbase
-from utils.transformation import map_and_save, save_to_neo4j, map_and_print
+import beelib.beehbase
+from beelib.beetransformation import map_and_save, save_to_neo4j, map_and_print
 import settings
 import neo4j
+import beelib
 
 time_to_timedelta = {
     "PT1H": timedelta(hours=1),
@@ -29,7 +30,7 @@ def fuzzy_locations(adm):
 
 def harmonize_supplies(data):
     df = pd.DataFrame(data)
-    config = utils.config.read_config("plugins/icaen/config_icaen.json")
+    config = beelib.beeconfig.read_config("plugins/icaen/config_icaen.json")
     driver = neo4j.GraphDatabase().driver(**config['neo4j'])
     with driver.session() as session:
         cups_ens = session.run("""MATCH (n:bigg__UtilityPointOfDelivery)<-[:bigg__hasUtilityPointOfDelivery]-
@@ -107,7 +108,7 @@ def harmonize_timeseries(data, freq, prop):
     df['isReal'] = df['obtainMethod'].apply(lambda x: True if x == "Real" else False)
     rdf = rdflib.Graph()
     df_final = pd.DataFrame()
-    config = utils.config.read_config("plugins/icaen/config_icaen.json")
+    config = beelib.beeconfig.read_config("plugins/icaen/config_icaen.json")
     driver = neo4j.GraphDatabase().driver(**config['neo4j'])
     for device_id, data_group in df.groupby("cups"):
         data_group.set_index("datetime", inplace=True)
@@ -125,6 +126,8 @@ def harmonize_timeseries(data, freq, prop):
             end_neo = pytz.UTC.localize(datetime.datetime.min)
         dt_ini = data_group.iloc[0].name
         dt_end = data_group.iloc[-1].name
+        dt_ini = datetime.datetime.fromisoformat(dt_ini)
+        dt_end = datetime.datetime.fromisoformat(dt_end)
         dt_ini = min(dt_ini, start_neo)
         dt_end = max(dt_end, end_neo)
         measurement_id = hashlib.sha256(sensor_uri.encode("utf-8")).hexdigest()
@@ -137,13 +140,13 @@ def harmonize_timeseries(data, freq, prop):
         df_final = pd.concat([df_final, data_group[["hash", "bucket", "start", "end", "value", "isReal"]]])
     save_to_neo4j(rdf, config)
     table_name = config['hbase']['harmonized_data'].format(data_type=prop, freq=freq)
-    utils.hbase.save_to_hbase(df_final.to_dict(orient="records"), table_name, config['hbase']['connection'],
+    beelib.beehbase.save_to_hbase(df_final.to_dict(orient="records"), table_name, config['hbase']['connection'],
                               [("v", ["value"]), ("info", ["end", "isReal"])],
                               ["bucket", "hash", "start"])
 
 
 def end_process():
-    config = utils.config.read_config("plugins/icaen/config_icaen.json")
+    config = beelib.beeconfig.read_config("plugins/icaen/config_icaen.json")
     driver = neo4j.GraphDatabase.driver(**config['neo4j'])
     with driver.session() as session:
         session.run("""Match(n:bigg__UtilityPointOfDelivery) 

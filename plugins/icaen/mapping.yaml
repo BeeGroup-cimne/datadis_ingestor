@@ -29,6 +29,7 @@ mappings:
       - [ bigg:hasDeviceLocationInfo, icaen:LOCATION-DEVICE-DatadisSource-$(cups) ]
       - [ bigg:source, "DatadisSource" ]
       - [ bigg:nif,  $(nif)]
+      - [ bigg:authorized_nif,  $(authorized_nif)]
 
   upods:
     sources:
