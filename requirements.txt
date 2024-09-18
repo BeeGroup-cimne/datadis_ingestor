@@ -5,19 +5,21 @@ aiosignal==1.3.1
 async-timeout==4.0.3
 attrs==23.1.0
 beautifulsoup4==4.12.2
+beelib @ git+https://github.com/BeeGroup-cimne/beelib@8e58f27e29803872422ab5d9486c99bc20e04650
 bs4==0.0.1
 certifi==2023.7.22
 charset-normalizer==3.3.2
 click==8.1.7
 colorlog==6.8.0
 croniter==2.0.1
-datadis @ git+https://github.com/BeeGroup-cimne/beedis@15c57dc549baee3e1b9ea8547793e3d1247eb8b9
+datadis @ git+https://github.com/BeeGroup-cimne/beedis@4d34b41e234f476514c0954aba054f980156f9c4
 dnspython==2.4.2
 duckdb==0.7.1
 elementpath==4.1.5
 falcon==3.1.1
 faust-streaming==0.10.20
 frozenlist==1.4.0
+future==1.0.0
 greenlet==3.0.1
 happybase==1.2.0
 idna==3.4
@@ -36,17 +38,22 @@ opentracing==2.4.0
 packaging==23.2
 pandas==2.1.3
 ply==3.11
+pure-sasl==0.6.2
 pycryptodome==3.19.0
+pydruid==0.6.9
+PyHive==0.7.0
 pymongo==4.6.0
 pyoxigraph==0.3.20
 pyparsing==3.1.1
 python-dateutil==2.8.2
+python-dotenv==1.0.1
 pytz==2023.3.post1
 PyYAML==6.0.1
 rapidfuzz==3.5.2
 rdflib==7.0.0
 redis==5.0.4
 requests==2.31.0
+rq==1.16.2
 ruamel.yaml==0.18.0
 ruamel.yaml.clib==0.2.8
 shellescape==3.8.1
@@ -58,12 +65,11 @@ SQLAlchemy==2.0.23
 sqlparse==0.4.4
 terminaltables==3.1.10
 thefuzz==0.20.0
+thrift==0.16.0
+thrift-sasl==0.4.3
 thriftpy2==0.4.17
 typing_extensions==4.8.0
 tzdata==2023.3
 urllib3==2.1.0
 venusian==3.1.0
 yarl==1.9.3
-pyhive==0.7.0
-thrift==0.16.0
-thrift-sasl==0.4.3

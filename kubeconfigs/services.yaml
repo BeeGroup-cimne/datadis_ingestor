@@ -197,7 +197,7 @@ spec:
           containers:
           - name: bigg-datadis-gather-last
             image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: ["python3", "launcher.py", "-p", "last"]
+            command: ["python3", "launcher.py", "-p", "last", "-l", "producer"]
             #command: ["/bin/sh", "-ec", "sleep 1000"]
             env:
               - name: CONF_FILE
@@ -285,7 +285,7 @@ spec:
           containers:
           - name: bigg-datadis-gather-repair
             image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: ["python3", "launcher.py", "-p", "repair"]
+            command: ["python3", "launcher.py", "-p", "repair", "-l", "producer"]
             env:
               - name: CONF_FILE
                 value: "config.json"
