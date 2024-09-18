@@ -45,6 +45,7 @@ pytz==2023.3.post1
 PyYAML==6.0.1
 rapidfuzz==3.5.2
 rdflib==7.0.0
+redis==5.0.4
 requests==2.31.0
 ruamel.yaml==0.18.0
 ruamel.yaml.clib==0.2.8
