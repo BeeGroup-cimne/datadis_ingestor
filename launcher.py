@@ -44,22 +44,17 @@ def get_all_users():
     return users
 
 
-def redis_barrier_sync(num_processes, process_id, red, barrier_id):
-    process_key = "{barrier_id}.{process_id}"
-
+def redis_barrier_sync(num_processes, red, barrier_id):
     # Marca aquest procés com a arribat
-    red.set(process_key.format(barrier_id, process_id), "arrived")
+    red.incr(barrier_id)
 
     # Comprova si tots els processos han arribat
-    while True:
-        arrived_count = red.keys(process_key.format(barrier_id, "*"))
-        if len(arrived_count) >= num_processes:
-            break
-        time.sleep(0.5)  # Espera abans de tornar a comprovar
+    while red.get(barrier_id) < num_processes:
+        time.sleep(0.1)
 
     # Making sure all processes notice that they must proceed before the deletion of their key
     time.sleep(1)
-    red.delete(process_key)
+    red.delete(barrier_id)
 
 
 def get_users(config):
@@ -81,8 +76,6 @@ def get_users(config):
 def get_datadis_devices(dg, config):
     red = redis.Redis(**config['redis'])
 
-    process_id = os.getenv('JOB_COMPLETION_INDEX', 0)
-
     while True:
         item = red.rpop('datadis.users')
         if not item:
@@ -91,7 +84,7 @@ def get_datadis_devices(dg, config):
         item_map['red'] = red
         dg.get_devices(item_map['username'], item_map['password'], item_map['authorized_nif'], item_map['source'], red)
 
-    redis_barrier_sync(NUM_PROCESSES, process_id, red, 'datadis.barrier')
+    redis_barrier_sync(NUM_PROCESSES, red, 'datadis.barrier')
 
 
 def get_datadis_data(dg, config):
@@ -120,10 +113,20 @@ def empty_devices(red):
         item = red.rpop('datadis.devices')
 
 
+def wait_redis_queue(config):
+    redis_con = redis.Redis(**config['redis'])
+    timeout = time.time() + 60 * 10  # timeout 10 minutes
+
+    while time.time() < timeout:
+        if redis_con.llen('datadis.users') > 0:
+            break
+        time.sleep(1)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--policy", "-p", choices=["last", "repair"], required=True)
-    ap.add_argument("--launcher", "-l", choices=["producer", "consumer"], required=True)
+    ap.add_argument("--launcher", "-l", choices=["producer", "consumer", "wait"], required=True)
     if os.getenv("PYCHARM_HOSTED") is not None:
         exit(0)
     else:
@@ -137,7 +140,8 @@ if __name__ == "__main__":
 
     if launcher == 'producer':
         get_users(config)
-
+    elif launcher == 'wait':
+        wait_redis_queue(config)
     else:
         get_datadis_devices(dg, config)
         get_datadis_data(dg, config)
