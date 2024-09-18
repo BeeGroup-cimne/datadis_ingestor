@@ -27,9 +27,8 @@ IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/jobs
 RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
 NUM_PROCESSES = 10
 
-import numpy as np
 def get_all_users():
-    plugins_list = plugins.get_plugins()
+    plugins_list = [plugins.get_plugins()[1]]
     users = pd.DataFrame()
     for p in plugins_list:
         program.debug(f"Getting users from source:{p}")
@@ -74,7 +73,6 @@ def get_users(config):
 
     # First process
     red = redis.Redis(**config['redis'])
-    print(users)
     for _, row in users.iterrows():
         red.lpush('datadis.users', pickle.dumps(row.to_dict()))
     program.info(f"Took : {time.time()-s}")
@@ -143,16 +141,3 @@ if __name__ == "__main__":
     else:
         get_datadis_devices(dg, config)
         get_datadis_data(dg, config)
-
-    empty_users(red)
-    empty_devices(red)
-
-    len1 = red.llen('datadis.users')
-    len1
-
-    item = red.rpop('datadis.users')
-
-    len2 = red.llen('datadis.devices')
-    len2
-
-    item2 = red.rpop('datadis.devices')
