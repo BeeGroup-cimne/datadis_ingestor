@@ -134,16 +134,17 @@ if __name__ == "__main__":
     else:
         args = ap.parse_args()
     launcher = args.launcher
+    policy = args.policy
 
     config = beelib.beeconfig.read_config('config.json')
     red = redis.Redis(**config['redis'])
-
-    dg = DatadisGatherer()
 
     if launcher == 'producer':
         get_users(config)
     elif launcher == 'wait':
         wait_redis_queue(config)
     else:
+        dg = DatadisGatherer(policy)
+
         get_datadis_devices(dg, config)
         get_datadis_data(dg, config)

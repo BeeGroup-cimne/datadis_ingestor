@@ -15,10 +15,10 @@ from dateutil.relativedelta import relativedelta
 class DatadisGatherer:
     TZ = pytz.timezone("Europe/Madrid")
 
-    def __init__(self):
+    def __init__(self, policy='last'):
         self.config = beelib.beeconfig.read_config("config.json")
         self.source = "datadis"
-        self.config['policy'] = 'last'
+        self.policy = policy
 
     @staticmethod
     def get_values_period(init_time, end_time, freq):
@@ -177,7 +177,7 @@ class DatadisGatherer:
             if dblist == ['icat']:
                 m_property = 'energy-active'
             if type_params['type_data'] == "timeseries":
-                if self.config['policy'] == "last":
+                if self.policy == "last":
                     try:
                         # get last chunk
                         status = list(device[type_params["mongo_collection"]].values())[-1]
@@ -199,7 +199,7 @@ class DatadisGatherer:
                         downloaded_elems.add((m_property, freq))
                     # store status info
                     status['values'] = len(data_df)
-                if self.config['policy'] == "repair":
+                if self.policy == "repair":
                     # get all incomplete chunks
                     status_list = [x for x in device[type_params["mongo_collection"]].values()
                                    if x['values'] < x['total'] and x['retries'] > 0 and

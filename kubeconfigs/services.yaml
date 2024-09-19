@@ -179,6 +179,9 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
+      completions: 10
+      parallelism: 10
+      completionMode: Indexed
       template:
         spec:
           hostAliases:
@@ -212,10 +215,27 @@ spec:
           - ip: "10.0.87.50"
             hostnames:
               - "database3-vpn"
+          initContainers:
+            - name: datadis-repair-consumer-wait
+              image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
+              command: [ "python3", "launcher.py", "-p", "repair", "-l", "wait" ]
+              env:
+                - name: CONF_FILE
+                  value: "config.json"
+              volumeMounts:
+                - name: datadis-harmonize-secret
+                  mountPath: /home/ubuntu/datadis/config.json
+                  subPath: config.json
+                - name: datadis-icaen-secret
+                  mountPath: /home/ubuntu/datadis/plugins/icaen/config_icaen.json
+                  subPath: config_icaen.json
+                - name: datadis-icat-secret
+                  mountPath: /home/ubuntu/datadis/plugins/infraestructures/config_infra.json
+                  subPath: config_infra.json
           containers:
           - name: datadis-gather-repair-starter
             image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: ["python3", "launcher.py", "-p", "repair", "-l", "producer"]
+            command: ["python3", "launcher.py", "-p", "repair", "-l", "consumer"]
             env:
               - name: CONF_FILE
                 value: "config.json"
