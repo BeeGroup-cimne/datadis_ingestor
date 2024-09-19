@@ -22,6 +22,8 @@ mappings:
       - [ a, bigg:Element ]
       - [ a, bigg:Thing ]
       - [ bigg:deviceName, $(cups) ]
+      - [ bigg:startDate, $(startDate), xsd:dateTime ]
+      - [ bigg:endDate, $(endDate), xsd:dateTime ]
       - [ bigg:hasDeviceType, bigg:Meter.EnergyMeter.Electricity ]
       - [ bigg:contractedPower, $(contractedPowerkW) ]
       - [ bigg:tension, $(tension) ]
@@ -38,6 +40,8 @@ mappings:
     po:
       - [ a, bigg:UtilityPointOfDelivery ]
       - [ a, bigg:Thing ]
+      - [ bigg:startDate, $(startDate), xsd:dateTime ]
+      - [ bigg:endDate, $(endDate), xsd:dateTime ]
       - [ bigg:pointOfDeliveryIDFromOrganization, $(supply_name) ]
       - [ bigg:hasUtilityType, bigg:ElectricUtility ]
       - [ bigg:hasDevice, icaen:DEVICE-DatadisSource-$(cups) ]

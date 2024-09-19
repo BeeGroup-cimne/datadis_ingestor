@@ -10,6 +10,7 @@ from beelib.beetransformation import map_and_save, save_to_neo4j, map_and_print
 import settings
 import neo4j
 import beelib
+import numpy as np
 
 time_to_timedelta = {
     "PT1H": timedelta(hours=1),
@@ -49,6 +50,8 @@ def harmonize_supplies(data):
     df['municipality'] = df['municipality'].map(fuzzy_map_mun)
     df['province'] = df['province'].map(fuzzy_map_prov)
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
+    df['startDate'] = pd.to_datetime(df['startDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    df['endDate'] = pd.to_datetime(df['endDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     map_and_save({"supplies": df.to_dict(orient="records")},
                  "plugins/icaen/mapping.yaml", config)
     with driver.session() as session:

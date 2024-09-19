@@ -48,13 +48,15 @@ def redis_barrier_sync(num_processes, red, barrier_id):
     # Marca aquest procés com a arribat
     red.incr(barrier_id)
 
+    print('Waiting_for other processes to finish...')
     # Comprova si tots els processos han arribat
-    while red.get(barrier_id) < num_processes:
-        time.sleep(0.1)
+    while int(red.get(barrier_id)) < num_processes:
+        print(f'Number of processes done: {int(red.get(barrier_id))}')
+        time.sleep(0.2)
+    print('Other processes done, execution wil continue')
 
     # Making sure all processes notice that they must proceed before the deletion of their key
-    time.sleep(1)
-    red.delete(barrier_id)
+    time.sleep(5)
 
 
 def get_users(config):
@@ -66,7 +68,6 @@ def get_users(config):
     program.info("Uploading users to Redis file")
 
 
-    # First process
     red = redis.Redis(**config['redis'])
     for _, row in users.iterrows():
         red.lpush('datadis.users', pickle.dumps(row.to_dict()))
@@ -76,6 +77,7 @@ def get_users(config):
 def get_datadis_devices(dg, config):
     red = redis.Redis(**config['redis'])
 
+    red.delete('datadis.barrier')
     while True:
         item = red.rpop('datadis.users')
         if not item:

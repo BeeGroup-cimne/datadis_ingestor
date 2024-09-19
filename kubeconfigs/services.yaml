@@ -304,7 +304,7 @@ spec:
           initContainers:
           - name: datadis-last-consumer-wait
             image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: [ "python3", "launcher.py", "-p", "repair", "-l", "wait" ]
+            command: [ "python3", "launcher.py", "-p", "last", "-l", "wait" ]
             env:
               - name: CONF_FILE
                 value: "config.json"
@@ -321,7 +321,7 @@ spec:
           containers:
           - name: datadis-last-consumer
             image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: ["python3", "launcher.py", "-p", "repair", "-l", "consumer"]
+            command: ["python3", "launcher.py", "-p", "last", "-l", "consumer"]
             env:
               - name: CONF_FILE
                 value: "config.json"

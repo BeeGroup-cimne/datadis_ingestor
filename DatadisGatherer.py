@@ -102,6 +102,7 @@ class DatadisGatherer:
     }
 
     def save_datadis_data(self, topic, collection_type, key, data, row_keys, dblist, **kwargs):
+        table = ''
         if collection_type == 'timeseries':
             prop = kwargs['property'] if 'property' in kwargs else None
             freq = kwargs['freq'] if 'freq' in kwargs else None
