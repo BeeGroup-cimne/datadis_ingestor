@@ -6,7 +6,7 @@ import rdflib
 import hashlib
 from thefuzz import process
 import beelib.beehbase
-from beelib.beetransformation import map_and_save, save_to_neo4j, map_and_print
+from beelib.beetransformation import map_and_save, save_to_neo4j
 import settings
 import neo4j
 import beelib

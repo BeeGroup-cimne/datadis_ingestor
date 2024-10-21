@@ -14,6 +14,7 @@ spec:
     metadata:
         labels:
             app: harmonizer-datadis-icaen
+            logger: datadis-logger-icaen
     spec:
       hostAliases:
         - ip: "10.0.88.76"
@@ -92,6 +93,9 @@ spec:
     spec:
       backoffLimit: 0
       template:
+        metadata:
+          labels:
+            logger: datadis-logger
         spec:
           hostAliases:
           - ip: "10.0.88.76"
@@ -183,6 +187,9 @@ spec:
       parallelism: 10
       completionMode: Indexed
       template:
+        metadata:
+          labels:
+            logger: datadis-logger
         spec:
           hostAliases:
           - ip: "10.0.88.76"
@@ -289,6 +296,9 @@ spec:
       parallelism: 10
       completionMode: Indexed
       template:
+        metadata:
+          labels:
+            logger: datadis-logger
         spec:
           hostAliases:
           - ip: "10.0.88.76"

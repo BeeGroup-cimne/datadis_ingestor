@@ -4,6 +4,17 @@ from plugins.icaen.harmonizer_sime import harmonize_supplies, harmonize_timeseri
 import settings
 import beelib
 import os
+import logging
+from pythonjsonlogger import jsonlogger
+
+
+logger = logging.getLogger()
+logger.setLevel("DEBUG")
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter('%(asctime)s - %(levelname)s - %(name)s: %(message)s')
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
+
 config = beelib.beeconfig.read_config()
 app = faust.App('datadis.harm', topic_disable_leader=True, broker=f"kafka://{config['kafka']['host']}:{config['kafka']['port']}")
 
@@ -22,7 +33,7 @@ async def join_supplies(records):
         if "sime" not in record['kwargs']['dblist']:
             continue
         if record['kwargs']['collection_type'] == "FINAL_MESSAGE":
-            print("FINAL_MESSAGE received")
+            logger.debug("FINAL_MESSAGE received", extra={'phase': 'HARMONIZE'})
             await process_table.cast(value=record)
             continue
         try:
@@ -40,15 +51,15 @@ async def process_table(records):
         messages = [x['data'] for x in record_batch if x['kwargs']['collection_type'] != "FINAL_MESSAGE"]
         final = [x for x in record_batch if x['kwargs']['collection_type'] == "FINAL_MESSAGE"]
         if messages:
-            print(f"processing {len(messages)} supplies")
+            logger.debug("Processing supplies", extra={'phase': 'HARMONIZE', 'number': len(messages)})
             with open(os.devnull, 'w') as devnull:
                 with contextlib.redirect_stdout(devnull):
                     with contextlib.redirect_stderr(devnull):
                         harmonize_supplies(messages)
         if final:
-            print("processing final event")
+            logger.debug("Processing final event", extra={'phase': 'HARMONIZE_END'})
             for k in supplies_table.keys():
-                print(k)
+                logger.debug("Supply", extra={'phase': 'HARMONIZE', 'supply': k})
             end_process()
 
 
