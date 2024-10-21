@@ -9,16 +9,15 @@ import logging
 import argparse
 import pandas as pd
 from DatadisGatherer import DatadisGatherer
+from pythonjsonlogger import jsonlogger
 
 
-program = logging.getLogger(__name__)
-program.setLevel(logging.DEBUG)
-
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-program.addHandler(handler)
+logger = logging.getLogger()
+logger.setLevel("DEBUG")
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter('%(asctime)s - %(levelname)s - %(name)s: %(message)s')
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
 
 MODULE_NAME = "datadis_gather"
 HDFS_PATH = f'tmp/{MODULE_NAME}'
@@ -27,16 +26,16 @@ IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/jobs
 RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
 NUM_PROCESSES = 10
 
+
 def get_all_users():
     plugins_list = [plugins.get_plugins()[1]]
     users = pd.DataFrame()
     for p in plugins_list:
-        program.debug(f"Getting users from source:{p}")
+        logger.debug(f"Getting users from source:{p}", extra={'phase': "GATHER"})
         tmp_df = p.get_users()
         tmp_df['source'] = p.get_source()
         users = pd.concat([users, tmp_df])
     # users = users[users['authorized_nif'].isna]
-    print(users)
     users['authorized_nif'] = users['authorized_nif'].apply(lambda x: x + [''] if x else x)
     users = users.explode('authorized_nif')
     users = pd.DataFrame(users.groupby(["username", "password", "authorized_nif"])['source'].apply(list)).reset_index()
@@ -48,12 +47,12 @@ def redis_barrier_sync(num_processes, red, barrier_id):
     # Marca aquest procés com a arribat
     red.incr(barrier_id)
 
-    print('Waiting_for other processes to finish...')
+    logger.debug(f"Waiting for other processes to finish", extra={'phase': "WAIT"})
     # Comprova si tots els processos han arribat
     while int(red.get(barrier_id)) < num_processes:
         print(f'Number of processes done: {int(red.get(barrier_id))}')
         time.sleep(0.2)
-    print('Other processes done, execution wil continue')
+    logger.debug(f"Other processes done, execution wil continue", extra={'phase': "WAIT"})
 
     # Making sure all processes notice that they must proceed before the deletion of their key
     time.sleep(5)
@@ -61,22 +60,25 @@ def redis_barrier_sync(num_processes, red, barrier_id):
 
 def get_users(config):
     s = time.time()
-    program.info("Getting users from plugins")
-    users = get_all_users()
-    program.info(f"Took : {time.time()-s}")
-    s = time.time()
-    program.info("Uploading users to Redis file")
+    logger.info("Starting the ingestor", extra={'phase': "START"})
 
+    logger.debug("Getting users from plugins", extra={'phase': "GATHER"})
+    users = get_all_users()
+    logger.debug(f"Users retrieval took: {time.time()-s} seconds", extra={'phase': "GATHER"})
+    s = time.time()
+    logger.debug("Uploading users to Redis file", extra={'phase': "GATHER"})
 
     red = redis.Redis(**config['redis'])
     for _, row in users.iterrows():
+        logger.debug("Gathered users", extra={"username": users['username'], 'phase': "GATHER"})
         red.lpush('datadis.users', pickle.dumps(row.to_dict()))
-    program.info(f"Took : {time.time()-s}")
+    logger.debug(f"Users upload took: {time.time()-s} seconds")
 
 
 def get_datadis_devices(dg, config):
     red = redis.Redis(**config['redis'])
-
+    s = time.time()
+    logger.debug("Starting devices retrieval", extra={'phase': 'GATHER'})
     red.delete('datadis.barrier')
     while True:
         item = red.rpop('datadis.users')
@@ -85,14 +87,14 @@ def get_datadis_devices(dg, config):
         item_map = pickle.loads(item)
         item_map['red'] = red
         dg.get_devices(item_map['username'], item_map['password'], item_map['authorized_nif'], item_map['source'], red)
-
+    logger.debug(f"Devices retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
     redis_barrier_sync(NUM_PROCESSES, red, 'datadis.barrier')
 
 
 def get_datadis_data(dg, config):
-
     red = redis.Redis(**config['redis'])
-
+    s = time.time()
+    logger.debug("Starting data retrieval", extra={'phase': 'GATHER'})
     while True:
         item = red.rpop('datadis.devices')
         if not item:
@@ -101,6 +103,8 @@ def get_datadis_data(dg, config):
 
         dg.get_data(item_map['user'], item_map['password'], item_map['authorized_nif'],
                     item_map['db_list'], item_map['supplies'])
+    logger.debug(f"Data retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
+    logger.info(f"WORKER FINISHED", extra={'phase': "END"})
 
 
 def empty_users(red):
@@ -118,11 +122,13 @@ def empty_devices(red):
 def wait_redis_queue(config):
     redis_con = redis.Redis(**config['redis'])
     timeout = time.time() + 60 * 10  # timeout 10 minutes
+    logger.debug(f"Waiting for starter to store data in queue", extra={'phase': "WAIT"})
 
     while time.time() < timeout:
         if redis_con.llen('datadis.users') > 0:
             break
         time.sleep(1)
+    logger.debug(f"Data already in queue, new process will start", extra={'phase': "WAIT"})
 
 
 if __name__ == "__main__":

@@ -10,6 +10,9 @@ from datetime import datetime
 from functools import partial
 from beedis import ENDPOINTS, Datadis
 from dateutil.relativedelta import relativedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class DatadisGatherer:
@@ -115,10 +118,11 @@ class DatadisGatherer:
             if 'datetime' in entry and isinstance(entry['datetime'], pd.Timestamp):
                 entry['datetime'] = entry['datetime'].isoformat()
 
+        logger.debug(f"Sending timeseries to Kafka", extra={"phase": "GATHER", "table": table})
+
         producer = beelib.beekafka.create_kafka_producer(self.config['kafka'], encoding="JSON")
         beelib.beekafka.send_to_kafka(producer, topic, key, data,
                                       tables=[table], row_keys=[row_keys], kwargs=kwargs)
-
 
     def parse_arguments(self, row, type_params, date_ini, date_end):
         arguments = {}
@@ -143,23 +147,31 @@ class DatadisGatherer:
 
         try:
             Datadis.connection(username=user, password=password, timeout=1000)
+            logger.info(f"Login success", extra={'user': user, "phase": "GATHER"})
             supplies = Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
             if not supplies:
                 supplies = []
+                logger.error(f"user empty", extra={"phase": "GATHER", "user": user,
+                                                   "authorized_nif": authorized_nif, "db_list": db_list})
         except Exception as e:
-            print(f"{user}:", e, file=sys.stderr)
+            logger.error(f"Login failed", extra={"phase": "GATHER", "user": user, "exception": str(e),
+                                                 "authorized_nif": authorized_nif, "db_list": db_list})
             return
-        print(f"{user} end", file=sys.stderr)
+        logger.debug(f"{user} done", extra={"phase": "GATHER"})
+        # print(f"{user} end", file=sys.stderr)
         for i in range(0, len(supplies), 10):
             supply_dict = {'user': user, 'password': password, 'db_list': db_list, 'supplies': supplies[i:i + 10],
                            'authorized_nif': authorized_nif}
+            logger.debug("Gathered devices", extra={"user": supply_dict['user'], 'devices': supplies[i:i + 10],
+                                                    'phase': "GATHER"})
             red.lpush("datadis.devices", pickle.dumps(supply_dict))
 
     def download_chunk(self, supply, type_params, status):
         try:
             date_ini_req = status['date_ini_block'].date()
             date_end_req = status['date_end_block'].date()
-            print(f"downloading {supply['cups']} from {date_ini_req} to {date_end_req}", file=sys.stderr)
+            logger.debug(f"Downloading {supply['cups']} from {date_ini_req} to {date_end_req}",
+                         extra={"phase": "GATHER"})
             kwargs = self.parse_arguments(supply, type_params, date_ini_req, date_end_req)
             # kwargs.update('authorized_nif': supply['authorized_nif'], **kwargs)
             consumption = Datadis.datadis_query(type_params['endpoint'], **kwargs)
@@ -167,7 +179,9 @@ class DatadisGatherer:
                 raise Exception(f"No data could be found")
             return consumption
         except Exception as e:
-            print(e, file=sys.stderr)
+            logger.error(f"Error downloading data", extra={"phase": "GATHER", "exception": str(e), "cups": supply['cups'],
+                                                           'date_ini': status['date_ini_block'],
+                                                           "date_end": status['date_end_block']})
             return list()
 
     def download_device(self, supply, device, datadis_devices, dblist):
@@ -209,7 +223,8 @@ class DatadisGatherer:
                         data_df = type_params['parser'](data)
                         if len(data_df) > 0:
                             self.save_datadis_data(settings.TOPIC_TS, "timeseries", supply['cups'],
-                                                   data_df, ["cups", "timestamp"], dblist, property=m_property, freq=freq)
+                                                   data_df, ["cups", "timestamp"], dblist, property=m_property,
+                                                   freq=freq)
                             status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(
                                 pytz.UTC)
                             status['date_max'] = pd.to_datetime(data_df[-1]['timestamp'], unit="s"). \
@@ -243,7 +258,8 @@ class DatadisGatherer:
             date_ini = datetime.strptime(supply['validDateFrom'], '%Y/%m/%d')
         except ValueError:
             has_init_date = False
-            date_ini = datetime.today().replace(hour=0, day=1, minute=0, second=0, microsecond=0) - relativedelta(months=23)
+            date_ini = datetime.today().replace(hour=0, day=1, minute=0, second=0, microsecond=0) - relativedelta(
+                months=23)
         now = datetime.today().date() + relativedelta(day=31, hour=23, minute=59, second=59)
         try:
             date_end = datetime.strptime(supply['validDateTo'][:-2], '%Y/%m') + \
@@ -281,11 +297,14 @@ class DatadisGatherer:
     def get_data(self, user, password, nif, dblist, supplies):
         try:
             Datadis.connection(username=user, password=password, timeout=1000)
+            logger.info(f"Login success for data", extra={'user': user, "phase": "GATHER"})
+
             for supply in supplies:
                 contracts_dd = Datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
                                                      distributor_code=supply['distributorCode'], authorized_nif=nif)
                 contract = pd.DataFrame.from_records(contracts_dd).set_index('startDate') \
                     .reset_index().iloc[-1].to_dict()
+                logger.info(f"Contracts gathered", extra={'user': user, "phase": "GATHER"})
                 supply['nif'] = user
                 supply['authorized_nif'] = nif
                 mongo = pymongo.MongoClient(
@@ -300,4 +319,6 @@ class DatadisGatherer:
                 self.save_datadis_data(settings.TOPIC_STATIC, "contracts", contract['cups'], contract,
                                        ["cups", "timestamp"], dblist)
         except Exception as e:
-            print(f"{user}: {e}", file=sys.stderr)
+            logger.error(f"Error", extra={"phase": "GATHER", "user": user, "exception": str(e),
+                                          "authorized_nif": nif, ", db_list": dblist})
+            # print(f"{user}: {e}", file=sys.stderr)
