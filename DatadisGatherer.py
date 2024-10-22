@@ -12,8 +12,7 @@ from beedis import ENDPOINTS, Datadis
 from dateutil.relativedelta import relativedelta
 import logging
 
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger()
 
 class DatadisGatherer:
     TZ = pytz.timezone("Europe/Madrid")
@@ -151,18 +150,24 @@ class DatadisGatherer:
             supplies = Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
             if not supplies:
                 supplies = []
-                logger.error(f"user empty", extra={"phase": "GATHER", "user": user,
+                logger.error(f"User empty", extra={"phase": "GATHER", "user": user,
                                                    "authorized_nif": authorized_nif, "db_list": db_list})
-        except Exception as e:
+        except PermissionError as e:
             logger.error(f"Login failed", extra={"phase": "GATHER", "user": user, "exception": str(e),
                                                  "authorized_nif": authorized_nif, "db_list": db_list})
             return
+
+        except Exception as e:
+            logger.error(f"Request error", extra={"phase": "GATHER", "user": user, "exception": str(e),
+                                                  "authorized_nif": authorized_nif, "db_list": db_list})
+            return
+
         logger.debug(f"{user} done", extra={"phase": "GATHER"})
         # print(f"{user} end", file=sys.stderr)
         for i in range(0, len(supplies), 10):
             supply_dict = {'user': user, 'password': password, 'db_list': db_list, 'supplies': supplies[i:i + 10],
                            'authorized_nif': authorized_nif}
-            logger.debug("Gathered devices", extra={"user": supply_dict['user'], 'devices': supplies[i:i + 10],
+            logger.debug("Gathered devices", extra={"user": supply_dict['user'], 'supplies': supplies[i:i + 10],
                                                     'phase': "GATHER"})
             red.lpush("datadis.devices", pickle.dumps(supply_dict))
 
@@ -179,9 +184,10 @@ class DatadisGatherer:
                 raise Exception(f"No data could be found")
             return consumption
         except Exception as e:
-            logger.error(f"Error downloading data", extra={"phase": "GATHER", "exception": str(e), "cups": supply['cups'],
-                                                           'date_ini': status['date_ini_block'],
-                                                           "date_end": status['date_end_block']})
+            logger.error(f"Error downloading data",
+                         extra={"phase": "GATHER", "exception": str(e), "cups": supply['cups'],
+                                'date_ini': status['date_ini_block'],
+                                "date_end": status['date_end_block']})
             return list()
 
     def download_device(self, supply, device, datadis_devices, dblist):
@@ -321,4 +327,3 @@ class DatadisGatherer:
         except Exception as e:
             logger.error(f"Error", extra={"phase": "GATHER", "user": user, "exception": str(e),
                                           "authorized_nif": nif, ", db_list": dblist})
-            # print(f"{user}: {e}", file=sys.stderr)

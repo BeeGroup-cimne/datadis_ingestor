@@ -31,7 +31,7 @@ def get_all_users():
     plugins_list = [plugins.get_plugins()[1]]
     users = pd.DataFrame()
     for p in plugins_list:
-        logger.debug(f"Getting users from source:{p}", extra={'phase': "GATHER"})
+        logger.debug(f"Getting users from source", extra={'phase': "GATHER", 'source': p})
         tmp_df = p.get_users()
         tmp_df['source'] = p.get_source()
         users = pd.concat([users, tmp_df])
@@ -70,7 +70,7 @@ def get_users(config):
 
     red = redis.Redis(**config['redis'])
     for _, row in users.iterrows():
-        logger.debug("Gathered users", extra={"username": users['username'], 'phase': "GATHER"})
+        logger.debug("Gathered users", extra={"username": row['username'], 'phase': "GATHER"})
         red.lpush('datadis.users', pickle.dumps(row.to_dict()))
     logger.debug(f"Users upload took: {time.time()-s} seconds")
 
