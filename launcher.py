@@ -8,8 +8,9 @@ import plugins
 import logging
 import argparse
 import pandas as pd
-from DatadisGatherer import DatadisGatherer
+from neo4j import GraphDatabase
 from pythonjsonlogger import jsonlogger
+from DatadisGatherer import DatadisGatherer
 
 
 logger = logging.getLogger()
@@ -28,7 +29,9 @@ NUM_PROCESSES = 10
 
 
 def get_all_users():
-    plugins_list = [plugins.get_plugins()[1]]
+    plugins_list = plugins.get_plugins()
+    sime = next((cls for cls in plugins_list if cls.__name__ == "SIMEImport"), None)
+    plugins_list = [sime]
     users = pd.DataFrame()
     for p in plugins_list:
         logger.debug(f"Getting users from source", extra={'phase': "GATHER", 'source': p})
@@ -104,7 +107,78 @@ def get_datadis_data(dg, config):
         dg.get_data(item_map['user'], item_map['password'], item_map['authorized_nif'],
                     item_map['db_list'], item_map['supplies'])
     logger.debug(f"Data retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
-    logger.info(f"WORKER FINISHED", extra={'phase': "END"})
+    redis_barrier_sync(NUM_PROCESSES, red, 'datadis.barrier')
+
+
+def solve_multisources(config):
+    db = GraphDatabase.driver(**config['neo4j'])
+    query = """
+            MATCH (n:bigg__Device)
+            WHERE NOT isEmpty([key IN keys(n) WHERE key =~ "bigg__nif_.*"])
+            RETURN {
+              dev: n.uri, 
+              nifs: apoc.map.fromPairs(
+                [key IN keys(n) WHERE key =~ "bigg__nif_.*" | [key, n[key]]]
+              )
+            } AS data
+        """
+    with db.session() as session:
+        data = session.run(query).data()
+    df = pd.DataFrame.from_records([x['data'] for x in data])
+    filtered_df = df[df['nifs'].apply(lambda x: len(x) >= 2)]
+
+    for _, row in filtered_df.iterrows():
+        nifs = row['nifs']
+        max_nif_pair = max(nifs.items(), key=lambda item: item[1])
+
+        if max_nif_pair[1] == 'Alta':
+            other_keys = [key[10:] for key in nifs if key != max_nif_pair[0]]
+            db = GraphDatabase.driver(**config['neo4j'])
+            query = f"""
+                    MATCH (u:bigg__UtilityPointOfDelivery)-[:bigg__hasDevice]->(n:bigg__Device{{uri:'{row.dev}'}})
+                    -[r:importedFromSource]->(d:DatadisSource)
+                    where d.username in {other_keys}
+                    REMOVE n.bigg__endDate
+                    REMOVE u.bigg__endDate
+                    DELETE r
+                    """
+            with db.session() as session:
+                session.run(query)
+
+        else:
+            query = f"""
+                    MATCH (u:bigg__UtilityPointOfDelivery)-[:bigg__hasDevice]->(n:bigg__Device{{uri:'{row.dev}'}})
+                    -[r:importedFromSource]->(d:DatadisSource)
+                    SET n.bigg__endDate = localdatetime("{max_nif_pair[1]}")
+                    SET u.bigg__endDate = localdatetime("{max_nif_pair[1]}")
+                    DELETE r
+                    """
+            with db.session() as session:
+                session.run(query)
+
+    # Delete all nifs' properties
+    query = """
+                MATCH (n:bigg__Device) 
+                WITH n, [key IN keys(n) WHERE key =~ "bigg__nif_.*"] AS nifs
+                FOREACH (key IN nifs | REMOVE n[key])
+            """
+    with db.session() as session:
+        session.run(query)
+
+
+def nifs_multisource(config):
+    redis_client = redis.StrictRedis(**config['redis'])
+    lock_key = "my_lock"
+
+    # Try acquiring the lock
+    if redis_client.set(lock_key, "lock", nx=True, ex=60):
+        logger.debug(f"Pod solving multi source issue", extra={'phase': 'GATHER'})
+        solve_multisources(config)
+        redis_client.delete(lock_key)  # Release the lock
+        logger.debug(f"Pod finished solving multi source issue", extra={'phase': 'GATHER'})
+
+    else:
+        logger.debug(f"Another pod already solving multi source issue", extra={'phase': 'GATHER'})
 
 
 def empty_users(red):
@@ -154,3 +228,5 @@ if __name__ == "__main__":
 
         get_datadis_devices(dg, config)
         get_datadis_data(dg, config)
+        nifs_multisource(config)
+        logger.info(f"WORKER FINISHED", extra={'phase': "END"})

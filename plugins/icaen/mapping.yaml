@@ -32,6 +32,7 @@ mappings:
       - [ bigg:source, "DatadisSource" ]
       - [ bigg:nif,  $(nif)]
       - [ bigg:authorized_nif,  $(authorized_nif)]
+      - [ bigg:nif_$(nif), $(nif_ab)]
 
   upods:
     sources:

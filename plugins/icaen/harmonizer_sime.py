@@ -52,6 +52,7 @@ def harmonize_supplies(data):
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
     df['startDate'] = pd.to_datetime(df['startDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     df['endDate'] = pd.to_datetime(df['endDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    df['nif_ab'] = df['endDate'].apply(lambda x: 'Alta' if pd.isna(x) else x)
     map_and_save({"supplies": df.to_dict(orient="records")},
                  "plugins/icaen/mapping.yaml", config)
     with driver.session() as session:
