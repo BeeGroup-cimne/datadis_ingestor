@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import redis
 import pickle
@@ -156,14 +155,19 @@ def solve_multisources(config):
             with db.session() as session:
                 session.run(query)
 
-    # Delete all nifs' properties
-    query = """
+    unique_nifs = list(
+        set(key for dictionary in df["nifs"] if isinstance(dictionary, dict) for key in dictionary.keys())
+    )
+
+    # Delete all nifs properties
+    for nif in unique_nifs:
+        query = f"""
                 MATCH (n:bigg__Device) 
-                WITH n, [key IN keys(n) WHERE key =~ "bigg__nif_.*"] AS nifs
-                FOREACH (key IN nifs | REMOVE n[key])
-            """
-    with db.session() as session:
-        session.run(query)
+                WHERE n.{nif} IS NOT NULL
+                REMOVE n.{nif}
+                """
+        with db.session() as session:
+            session.run(query)
 
 
 def nifs_multisource(config):
