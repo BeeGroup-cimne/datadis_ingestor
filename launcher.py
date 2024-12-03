@@ -109,75 +109,21 @@ def get_datadis_data(dg, config):
     redis_barrier_sync(NUM_PROCESSES, red, 'datadis.barrier')
 
 
-def solve_multisources(config):
-    db = GraphDatabase.driver(**config['neo4j'])
-    query = """
-            MATCH (n:bigg__Device)
-            WHERE NOT isEmpty([key IN keys(n) WHERE key =~ "bigg__nif_.*"])
-            RETURN {
-              dev: n.uri, 
-              nifs: apoc.map.fromPairs(
-                [key IN keys(n) WHERE key =~ "bigg__nif_.*" | [key, n[key]]]
-              )
-            } AS data
-        """
-    with db.session() as session:
-        data = session.run(query).data()
-    df = pd.DataFrame.from_records([x['data'] for x in data])
-    filtered_df = df[df['nifs'].apply(lambda x: len(x) >= 2)]
-
-    for _, row in filtered_df.iterrows():
-        nifs = row['nifs']
-        max_nif_pair = max(nifs.items(), key=lambda item: item[1])
-
-        if max_nif_pair[1] == 'Alta':
-            other_keys = [key[10:] for key in nifs if key != max_nif_pair[0]]
-            db = GraphDatabase.driver(**config['neo4j'])
-            query = f"""
-                    MATCH (u:bigg__UtilityPointOfDelivery)-[:bigg__hasDevice]->(n:bigg__Device{{uri:'{row.dev}'}})
-                    -[r:importedFromSource]->(d:DatadisSource)
-                    where d.username in {other_keys}
-                    REMOVE n.bigg__endDate
-                    REMOVE u.bigg__endDate
-                    DELETE r
-                    """
-            with db.session() as session:
-                session.run(query)
-
-        else:
-            query = f"""
-                    MATCH (u:bigg__UtilityPointOfDelivery)-[:bigg__hasDevice]->(n:bigg__Device{{uri:'{row.dev}'}})
-                    -[r:importedFromSource]->(d:DatadisSource)
-                    SET n.bigg__endDate = localdatetime("{max_nif_pair[1]}")
-                    SET u.bigg__endDate = localdatetime("{max_nif_pair[1]}")
-                    DELETE r
-                    """
-            with db.session() as session:
-                session.run(query)
-
-    unique_nifs = list(
-        set(key for dictionary in df["nifs"] if isinstance(dictionary, dict) for key in dictionary.keys())
-    )
-
-    # Delete all nifs properties
-    for nif in unique_nifs:
-        query = f"""
-                MATCH (n:bigg__Device) 
-                WHERE n.{nif} IS NOT NULL
-                REMOVE n.{nif}
-                """
-        with db.session() as session:
-            session.run(query)
-
-
 def nifs_multisource(config):
     redis_client = redis.StrictRedis(**config['redis'])
     lock_key = "my_lock"
 
     # Try acquiring the lock
-    if redis_client.set(lock_key, "lock", nx=True, ex=60):
+    if redis_client.set(lock_key, "lock", nx=True, ex=180):
         logger.debug(f"Pod solving multi source issue", extra={'phase': 'GATHER'})
-        solve_multisources(config)
+        # Since all the data is being sent to Kafka, there's a chance that while the multi sources solver is being
+        # executed, data is still being harmonized, because of that, we have to put this process to sleep for a while
+        time.sleep(120)
+        plugins_list = plugins.get_plugins()
+        sime = next((cls for cls in plugins_list if cls.__name__ == "SIMEImport"), None)
+        plugins_list = [sime]
+        for p in plugins_list:
+            p.solve_multisources()
         redis_client.delete(lock_key)  # Release the lock
         logger.debug(f"Pod finished solving multi source issue", extra={'phase': 'GATHER'})
 
