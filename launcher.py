@@ -54,7 +54,7 @@ def redis_barrier_sync(num_processes, red, barrier_id):
     while int(red.get(barrier_id)) < num_processes:
         print(f'Number of processes done: {int(red.get(barrier_id))}')
         time.sleep(0.2)
-    logger.debug(f"Other processes done, execution wil continue", extra={'phase': "WAIT"})
+    logger.debug(f"Other processes done, execution will continue", extra={'phase': "WAIT"})
 
     # Making sure all processes notice that they must proceed before the deletion of their key
     time.sleep(5)
@@ -112,13 +112,15 @@ def get_datadis_data(dg, config):
 def nifs_multisource(config):
     redis_client = redis.StrictRedis(**config['redis'])
     lock_key = "my_lock"
+    minutes = 8
 
     # Try acquiring the lock
-    if redis_client.set(lock_key, "lock", nx=True, ex=180):
-        logger.debug(f"Pod solving multi source issue", extra={'phase': 'GATHER'})
+    if redis_client.set(lock_key, "lock", nx=True, ex=minutes*60):
+        logger.debug(f"Pod solving multi source issue, waiting {minutes} minutes for Kafka to finish",
+                     extra={'phase': 'GATHER'})
         # Since all the data is being sent to Kafka, there's a chance that while the multi sources solver is being
         # executed, data is still being harmonized, because of that, we have to put this process to sleep for a while
-        time.sleep(120)
+        time.sleep(minutes*60)
         plugins_list = plugins.get_plugins()
         sime = next((cls for cls in plugins_list if cls.__name__ == "SIMEImport"), None)
         plugins_list = [sime]
