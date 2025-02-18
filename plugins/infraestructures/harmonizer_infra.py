@@ -96,10 +96,10 @@ def harmonize_supplies(data):
 
     driver = neo4j.GraphDatabase().driver(**config['neo4j'])
     with driver.session() as session:
-        cups_ens = session.run(f"""MATCH (n:bigg__EnergySupplyPoint) WHERE n.bigg__energySupplyPointnumber
+        cups_ens = session.run(f"""MATCH (n:bigg__EnergySupplyPoint) WHERE n.bigg__energySupplyPointNumber
                in {cups} Match (n)<-[:s4syst__connectsAt]-()<-[:s4syst__hasSubSystem*]-()-[:ssn__hasDeployment]->
                (:s4agri__Deployment)-[:s4agri__isDeployedAtSpace]->(p:bigg__Patrimony) return p.bigg__idFromOrganization as patrimony,
-               n.bigg__energySupplyPointnumber as cups""").data()
+               n.bigg__energySupplyPointNumber as cups""").data()
         cups_ens = {v['cups']: v['patrimony'] for v in cups_ens}
 
     df['patrimony'] = df['cups'].map(cups_ens)

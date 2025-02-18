@@ -10,7 +10,7 @@ class InfrastructuresPlugin(DatadisInputPlugIn):
     @classmethod
     def get_users(cls):
         driver = GraphDatabase.driver(**cls.config['neo4j'])
-        query = "Match(n:bee__DatadisSource) return n.username as username, n.Password as password, n.authorized_nif as authorized_nif"
+        query = "Match(n:bee__Datadis) return n.username as username, n.Password as password, n.authorized_nif as authorized_nif"
         with driver.session() as session:
             users = pd.DataFrame(data=session.run(query).data())
             users['password'] = users.password.apply(beesecurity.decrypt, args=(cls.config['secret_password'],))
