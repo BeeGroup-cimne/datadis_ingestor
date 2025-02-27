@@ -103,18 +103,23 @@ def harmonize_supplies(data):
         cups_ens = {v['cups']: v['patrimony'] for v in cups_ens}
 
     df['patrimony'] = df['cups'].map(cups_ens)
-    df = df.dropna(subset='patrimony')
 
     if df.empty:
         return
 
-    df['uri'] = df['patrimony'] + '-datadis-' + df['cups'] + '-' + df['prop'] + '-' + df['freq']
+    df['uri'] = 'datadis-' + df['cups'] + '-' + df['prop'] + '-' + df['freq']
     df['measurement_uri'] = 'measurement-' + df['uri']
     df['hash'] = df.measurement_uri.apply(lambda x: create_hash(f"{namespace}{x}"))
 
-    df['electric_uri'] = df['patrimony'] + f'-electric-grid-' + df['cups'] + '-energy-active-imported'
-    df['electric_measure_uri'] = 'measurement-' + df['electric_uri'] + '-' + df['freq']
+    df['electric_uri'] = df['patrimony'].astype(str) + '-electric-grid-' + df['cups'] + '-energy-active-imported-from-grid'
+
+    df['electric_measure_uri'] = 'measurement-' + df['electric_uri'].astype(str) + '-' + df['freq']
     df['hash_elec'] = df.electric_measure_uri.apply(lambda x: create_hash(f"{namespace}{x}"))
+
+    # Cleaning fake data to avoid errors when creating columns
+    df.loc[df['patrimony'].isna(), 'electric_uri'] = pd.NA
+    df.loc[df['patrimony'].isna(), 'electric_measure_uri'] = pd.NA
+    df.loc[df['patrimony'].isna(), 'hash_elec'] = pd.NA
 
 
     config = beelib.beeconfig.read_config("plugins/infraestructures/config_infra.json")
@@ -133,56 +138,45 @@ def harmonize_timeseries(data, freq, prop):
     :param prop:
     :return:
     """
-    if freq == 'P1M':
-        return
-    df = pd.DataFrame(data)
-    # df.to_csv('timeseries.csv', index=False)
-    # df = pd.read_csv('timeseries_.csv')
-    df["start"] = df['timestamp']
-    df["bucket"] = (df['start'] // settings.TS_BUCKETS) % settings.BUCKETS
-    df['end'] = df.start + time_to_timedelta[freq].seconds
-    df['value'] = df['consumptionKWh']
-    df['isReal'] = df['obtainMethod'].apply(lambda x: True if x == "Real" else False)
-
-    config = beelib.beeconfig.read_config("plugins/infraestructures/config_infra.json")
-    driver = neo4j.GraphDatabase().driver(**config['neo4j'])
-
-    cups = list(df['cups'].str[:20].to_list())
-    df['cups'] = cups
-
-    with driver.session() as session:
-        cups_ens = session.run(f"""MATCH (n:bigg__EnergySupplyPoint) WHERE n.bigg__energySupplyPointnumber 
-                  in {cups} Match (n)<-[:s4syst__connectsAt]-()<-[:s4syst__hasSubSystem*]-()-[:ssn__hasDeployment]->
-                  (:s4agri__Deployment)-[:s4agri__isDeployedAtSpace]->(p:bigg__Patrimony) return p.bigg__idFromOrganization as patrimony, 
-                  n.bigg__energySupplyPointnumber as cups""").data()
-        cups_ens = {v['cups']: v['patrimony'] for v in cups_ens}
-    program.debug(cups_ens)
-
-    df['patrimony'] = df['cups'].map(cups_ens)
-    df = df.dropna(subset=['patrimony'])
-
-    if df.empty:
-        return
-
-    df['freq'] = freq
-    df['prop'] = prop
-    df['uri'] = df['patrimony'] + '-datadis-' + df['cups'] + '-' + df['freq'] + '-' + df['prop']
-    # print(df['uri'])
-
-    df['measurement_uri'] = 'measurement-' + df['uri']
-    df['hash'] = df.measurement_uri.apply(lambda x: create_hash(f"{namespace}{x}"))
-
-    producer = beelib.beekafka.create_kafka_producer(config['kafka'], encoding="JSON")
-    for i, row in df.iterrows():
-        data = {
-            "start": row['start'],
-            "end": row['end'],
-            "value": str(row.value),
-            "isReal": row["isReal"],
-            "hash": row['hash'],
-            "property": 'Energy.Active'
-        }
-        producer.send(config['druid']['topic'], data)
+    return
+    # if freq == 'P1M':
+    #     return
+    # df = pd.DataFrame(data)
+    # # df.to_csv('timeseries.csv', index=False)
+    # # df = pd.read_csv('timeseries_.csv')
+    # df["start"] = df['timestamp']
+    # df["bucket"] = (df['start'] // settings.TS_BUCKETS) % settings.BUCKETS
+    # df['end'] = df.start + time_to_timedelta[freq].seconds
+    # df['value'] = df['consumptionKWh']
+    # df['isReal'] = df['obtainMethod'].apply(lambda x: True if x == "Real" else False)
+    #
+    # config = beelib.beeconfig.read_config("plugins/infraestructures/config_infra.json")
+    # driver = neo4j.GraphDatabase().driver(**config['neo4j'])
+    #
+    # cups = list(df['cups'].str[:20].to_list())
+    # df['cups'] = cups
+    #
+    # with driver.session() as session:
+    #     cups_ens = session.run(f"""MATCH (n:bigg__EnergySupplyPoint) WHERE n.bigg__energySupplyPointNumber
+    #               in {cups} Match (n)<-[:s4syst__connectsAt]-()<-[:s4syst__hasSubSystem*]-()-[:ssn__hasDeployment]->
+    #               (:s4agri__Deployment)-[:s4agri__isDeployedAtSpace]->(p:bigg__Patrimony) return p.bigg__idFromOrganization as patrimony,
+    #               n.bigg__energySupplyPointNumber as cups""").data()
+    #     cups_ens = {v['cups']: v['patrimony'] for v in cups_ens}
+    # program.debug(cups_ens)
+    #
+    # df['patrimony'] = df['cups'].map(cups_ens)
+    # df = df.dropna(subset=['patrimony'])
+    #
+    # if df.empty:
+    #     return
+    #
+    # df['freq'] = freq
+    # df['prop'] = prop
+    # df['uri'] = df['patrimony'] + '-datadis-' + df['cups'] + '-' + df['freq'] + '-' + df['prop']
+    # # print(df['uri'])
+    #
+    # df['measurement_uri'] = 'measurement-' + df['uri']
+    # df['hash'] = df.measurement_uri.apply(lambda x: create_hash(f"{namespace}{x}"))
 
 
 def end_process():

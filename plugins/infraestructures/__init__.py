@@ -20,8 +20,23 @@ class InfrastructuresPlugin(DatadisInputPlugIn):
     def get_source(cls):
         return "icat"
 
+    @classmethod
+    def get_row_keys(cls):
+        return [('raw_uri', 'timestamp'), ('timestamp', 'raw_uri')]
+
+    @classmethod
+    def get_tables(cls):
+        return ["datadis:timeseries_id_{freq}", "datadis:timeseries_time_{freq}"]
+
+    @classmethod
+    def get_topic(cls):
+        return 'datadis.hbase'
+
+    @classmethod
+    def prepare_raw_data(cls, df):
+        df['raw_uri'] = 'https://icat.cat#measurement-datadis-' + df['cups'] + '-' + df['prop'] + '-' + df['freq']
+        return df
+
 
 def get_plugin():
     return InfrastructuresPlugin
-
-

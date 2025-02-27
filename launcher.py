@@ -29,18 +29,26 @@ NUM_PROCESSES = 10
 
 def get_all_users():
     plugins_list = plugins.get_plugins()
-    sime = next((cls for cls in plugins_list if cls.__name__ == "SIMEImport"), None)
-    plugins_list = [sime]
     users = pd.DataFrame()
     for p in plugins_list:
         logger.debug(f"Getting users from source", extra={'phase': "GATHER", 'source': p})
         tmp_df = p.get_users()
         tmp_df['source'] = p.get_source()
+        tmp_df['tables'] = [p.get_tables()] * len(tmp_df)
+        tmp_df['row_keys'] = [p.get_row_keys()] * len(tmp_df)
+
+        # Covert the previous list to tuples in order to GroupBy correctly
+        tmp_df["tables"] = tmp_df["tables"].apply(tuple)
+        tmp_df["row_keys"] = tmp_df["row_keys"].apply(tuple)
         users = pd.concat([users, tmp_df])
     # users = users[users['authorized_nif'].isna]
     users['authorized_nif'] = users['authorized_nif'].apply(lambda x: x + [''] if x else x)
     users = users.explode('authorized_nif')
-    users = pd.DataFrame(users.groupby(["username", "password", "authorized_nif"])['source'].apply(list)).reset_index()
+    users = pd.DataFrame(users.groupby(["username", "password", "authorized_nif", "tables", "row_keys"])['source'].apply(list)).reset_index()
+
+    # We reverse the previous tuples transformation
+    users["tables"] = users["tables"].apply(list)
+    users["row_keys"] = users["row_keys"].apply(list)
 
     return users
 
@@ -88,7 +96,8 @@ def get_datadis_devices(dg, config):
             break
         item_map = pickle.loads(item)
         item_map['red'] = red
-        dg.get_devices(item_map['username'], item_map['password'], item_map['authorized_nif'], item_map['source'], red)
+        dg.get_devices(item_map['username'], item_map['password'], item_map['authorized_nif'], item_map['source'],
+                       item_map['tables'], item_map['row_keys'], red)
     logger.debug(f"Devices retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
     redis_barrier_sync(NUM_PROCESSES, red, 'datadis.barrier')
 
@@ -104,13 +113,13 @@ def get_datadis_data(dg, config):
         item_map = pickle.loads(item)
 
         dg.get_data(item_map['user'], item_map['password'], item_map['authorized_nif'],
-                    item_map['db_list'], item_map['supplies'])
+                    item_map['db_list'], item_map['supplies'], item_map['tables'], item_map['row_keys'])
     logger.debug(f"Data retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
     redis_barrier_sync(NUM_PROCESSES, red, 'datadis.barrier')
 
 
 def nifs_multisource(config):
-    redis_client = redis.StrictRedis(**config['redis'])
+    redis_client = redis.Redis(**config['redis'])
     lock_key = "my_lock"
     minutes = 8
 
@@ -173,9 +182,9 @@ if __name__ == "__main__":
 
     if launcher == 'producer':
         get_users(config)
-    elif launcher == 'wait':
+    elif launcher == 'consumer':
         wait_redis_queue(config)
-    else:
+
         dg = DatadisGatherer(policy)
 
         get_datadis_devices(dg, config)

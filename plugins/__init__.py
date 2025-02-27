@@ -4,12 +4,28 @@ import os
 
 class DatadisInputPlugIn(object):
     @classmethod
-    def get_users(self):
+    def get_users(cls):
         raise NotImplemented
 
     @classmethod
-    def get_source(self):
+    def get_source(cls):
         raise NotImplemented
+
+    @classmethod
+    def get_row_keys(cls):
+        raise NotImplemented
+
+    @classmethod
+    def get_tables(cls):
+        raise NotImplemented
+
+    @classmethod
+    def get_topic(cls):
+        raise NotImplemented
+
+    @classmethod
+    def prepare_raw_data(cls, df):
+        return df
 
 
 def get_plugins():

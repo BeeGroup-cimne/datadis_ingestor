@@ -4,12 +4,14 @@ from plugins.infraestructures.harmonizer_infra import harmonize_supplies, harmon
 import settings
 import beelib
 import os
+from plugins.infraestructures import InfrastructuresPlugin
+
 config = beelib.beeconfig.read_config()
 app = faust.App('datadis.harm', topic_disable_leader=True, broker=f"kafka://{config['kafka']['host']}:{config['kafka']['port']}")
 
 static = app.topic(settings.TOPIC_STATIC, internal=True, partitions=settings.TOPIC_STATIC_PARTITIONS,
                    value_serializer='json')
-ts = app.topic(settings.TOPIC_TS, internal=True, partitions=settings.TOPIC_TS_PARTITIONS,
+ts = app.topic(InfrastructuresPlugin.get_topic(), internal=True, partitions=settings.TOPIC_TS_PARTITIONS,
                value_serializer='json')
 supplies_table = app.Table('datadis.supplies_table_cache', partitions=settings.TOPIC_STATIC_PARTITIONS)
 harmonize_supply = app.topic('datadis.harmonize_supplies',  internal=True, partitions=settings.TOPIC_STATIC_PARTITIONS,

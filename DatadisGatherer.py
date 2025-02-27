@@ -11,6 +11,7 @@ from functools import partial
 from beedis import ENDPOINTS, Datadis
 from dateutil.relativedelta import relativedelta
 import logging
+import plugins
 
 logger = logging.getLogger()
 
@@ -103,25 +104,42 @@ class DatadisGatherer:
         }
     }
 
-    def save_datadis_data(self, topic, collection_type, key, data, row_keys, dblist, **kwargs):
-        table = ''
+    def save_datadis_data(self, topic, collection_type, key, data, row_keys, dblist, tables, **kwargs):
+        plug = [x for x in plugins.get_plugins() if x.get_source() == dblist[0]][0]
+
         if collection_type == 'timeseries':
             prop = kwargs['property'] if 'property' in kwargs else None
             freq = kwargs['freq'] if 'freq' in kwargs else None
-            table = f'datadis:raw_datadis_ts_{prop}_{freq}'
+            tables = [s.format(freq=freq, prop=prop) for s in tables]
+            topic = plug.get_topic()
+            row_keys = [list(item) for item in row_keys]
 
-        kwargs.update({"dblist": dblist})
-        kwargs.update({'collection_type': collection_type})
+            # Get raw data prepared to upload to HBase using the proper plugin to set up the timeseries
+            data = pd.DataFrame(data)
+            data['freq'] = freq
+            data['prop'] = prop
+            data = plug.prepare_raw_data(data)
+            data = data.to_dict(orient='records')
+
+        else:
+            tables = ['']
 
         for entry in data:
             if 'datetime' in entry and isinstance(entry['datetime'], pd.Timestamp):
                 entry['datetime'] = entry['datetime'].isoformat()
 
-        logger.debug(f"Sending timeseries to Kafka", extra={"phase": "GATHER", "table": table})
+        for db in dblist:
+            kwargs.update({"dblist": [db]})
+            kwargs.update({'collection_type': collection_type})
 
-        producer = beelib.beekafka.create_kafka_producer(self.config['kafka'], encoding="JSON")
-        beelib.beekafka.send_to_kafka(producer, topic, key, data,
-                                      tables=[table], row_keys=[row_keys], kwargs=kwargs)
+            # Format the row_keys correctly
+
+            logger.debug(f"Sending timeseries to Kafka", extra={"phase": "GATHER", "tables": tables})
+
+            producer = beelib.beekafka.create_kafka_producer(self.config['kafka'], encoding="JSON")
+            beelib.beekafka.send_to_kafka(producer, topic, key, data,
+                                          tables=tables, row_keys=row_keys, kwargs=kwargs)
+
 
     def parse_arguments(self, row, type_params, date_ini, date_end):
         arguments = {}
@@ -142,7 +160,7 @@ class DatadisGatherer:
                 arguments["authorized_nif"] = row["authorized_nif"]
         return arguments
 
-    def get_devices(self, user, password, authorized_nif, db_list, red):
+    def get_devices(self, user, password, authorized_nif, db_list, tables, row_keys, red):
 
         try:
             Datadis.connection(username=user, password=password, timeout=1000)
@@ -166,7 +184,7 @@ class DatadisGatherer:
         # print(f"{user} end", file=sys.stderr)
         for i in range(0, len(supplies), 10):
             supply_dict = {'user': user, 'password': password, 'db_list': db_list, 'supplies': supplies[i:i + 10],
-                           'authorized_nif': authorized_nif}
+                           'authorized_nif': authorized_nif, 'tables': tables, 'row_keys': row_keys}
             logger.debug("Gathered devices", extra={"user": supply_dict['user'], 'supplies': supplies[i:i + 10],
                                                     'phase': "GATHER"})
             red.lpush("datadis.devices", pickle.dumps(supply_dict))
@@ -190,7 +208,7 @@ class DatadisGatherer:
                                 "date_end": status['date_end_block']})
             return list()
 
-    def download_device(self, supply, device, datadis_devices, dblist):
+    def download_device(self, supply, device, datadis_devices, dblist, tables, row_keys):
         downloaded_elems = set()
         for data_type, type_params in self.data_types_dict.items():
             m_property, freq = data_type.split("_")
@@ -211,7 +229,7 @@ class DatadisGatherer:
                     data_df = type_params['parser'](data)
                     if len(data_df) > 0:
                         self.save_datadis_data(settings.TOPIC_TS, "timeseries", supply['cups'],
-                                               data_df, ["cups", "timestamp"], dblist, property=m_property, freq=freq)
+                                               data_df, row_keys, dblist, tables, property=m_property, freq=freq)
                         status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(pytz.UTC)
                         status['date_max'] = pd.to_datetime(data_df[-1]['timestamp'], unit="s"). \
                             tz_localize(pytz.UTC)
@@ -229,7 +247,7 @@ class DatadisGatherer:
                         data_df = type_params['parser'](data)
                         if len(data_df) > 0:
                             self.save_datadis_data(settings.TOPIC_TS, "timeseries", supply['cups'],
-                                                   data_df, ["cups", "timestamp"], dblist, property=m_property,
+                                                   data_df, row_keys, dblist, tables, property=m_property,
                                                    freq=freq)
                             status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(
                                 pytz.UTC)
@@ -300,7 +318,7 @@ class DatadisGatherer:
                 loop_date_ini = current_end + relativedelta(seconds=1)
         return device
 
-    def get_data(self, user, password, nif, dblist, supplies):
+    def get_data(self, user, password, nif, dblist, supplies, tables, row_keys):
         try:
             Datadis.connection(username=user, password=password, timeout=1000)
             logger.info(f"Login success for data", extra={'user': user, "phase": "GATHER"})
@@ -318,12 +336,12 @@ class DatadisGatherer:
                     f"{self.config['mongo']['host']}:{self.config['mongo']['port']}/{self.config['mongo']['database']}")
                 datadis_devices = mongo[self.config['mongo']['database']][self.config['mongo']['collection']]
                 device = self.get_device(supply, datadis_devices)
-                downloaded_elems = self.download_device(supply, device, datadis_devices, dblist)
+                downloaded_elems = self.download_device(supply, device, datadis_devices, dblist, tables, row_keys)
                 supply['measurements'] = downloaded_elems
-                self.save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply, ["cups", "timestamp"],
-                                       dblist)
+                self.save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply, row_keys,
+                                       dblist, tables)
                 self.save_datadis_data(settings.TOPIC_STATIC, "contracts", contract['cups'], contract,
-                                       ["cups", "timestamp"], dblist)
+                                       row_keys, dblist, tables)
         except Exception as e:
             logger.error(f"Error", extra={"phase": "GATHER", "user": user, "exception": str(e),
                                           "authorized_nif": nif, ", db_list": dblist})

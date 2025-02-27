@@ -23,6 +23,18 @@ class SIMEImport(DatadisInputPlugIn):
         return "sime"
 
     @classmethod
+    def get_row_keys(cls):
+        return [('cups', 'timestamp')]
+
+    @classmethod
+    def get_tables(cls):
+        return ["datadis:raw_datadis_ts_{prop}_{freq}"]
+
+    @classmethod
+    def get_topic(cls):
+        return 'datadis.simehbase'
+
+    @classmethod
     def solve_multisources(cls):
         db = GraphDatabase.driver(**cls.config['neo4j'])
         query = """
