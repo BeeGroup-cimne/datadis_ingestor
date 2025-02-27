@@ -79,6 +79,87 @@ spec:
               - key: config_icaen.json
                 path: config_icaen.json
 ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name:	harmonizer-datadis-icat
+  namespace: datadis
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: harmonizer-datadis-icat
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+        labels:
+            app: harmonizer-datadis-icat
+            logger: datadis-logger-icat
+    spec:
+      hostAliases:
+        - ip: "10.0.88.76"
+          hostnames:
+            - "master1.internal"
+        - ip: "10.0.87.95"
+          hostnames:
+            - "master2.internal"
+        - ip: "10.0.88.132"
+          hostnames:
+            - "worker1.internal"
+        - ip: "10.0.86.33"
+          hostnames:
+            - "worker2.internal"
+        - ip: "10.0.87.145"
+          hostnames:
+            - "worker3.internal"
+        - ip: "10.0.86.214"
+          hostnames:
+            - "worker4.internal"
+        - ip: "10.0.129.220"
+          hostnames:
+            - "kafka1.internal"
+        - ip: "10.0.88.175"
+          hostnames:
+            - "database1-vpn"
+        - ip: "10.0.88.151"
+          hostnames:
+            - "database2-vpn"
+        - ip: "10.0.87.50"
+          hostnames:
+            - "database3-vpn"
+      containers:
+        - name: harmonizer-datadis-icat
+          image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
+          command: [ "python3", "-m", "plugins.infraestructures", "worker", "-l", "info"]
+          #command: ["/bin/sh", "-ec", "sleep 1000"]
+          env:
+            - name: CONF_FILE
+              value: "config.json"
+          volumeMounts:
+          - name: datadis-harmonize-secret
+            mountPath: /home/ubuntu/datadis/config.json
+            subPath: config.json
+          - name: datadis-icat-secret
+            mountPath: /home/ubuntu/datadis/plugins/infraestructures/config_infra.json
+            subPath: config_infra.json
+      imagePullSecrets:
+        - name: registrypullsecret
+
+      volumes:
+        - name: datadis-harmonize-secret
+          secret:
+            secretName: datadis-harmonize-secret
+            items:
+            - key: config.json
+              path: config.json
+        - name: datadis-icat-secret
+          secret:
+            secretName: datadis-icat-secret
+            items:
+              - key: config_infra.json
+                path: config_infra.json
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:

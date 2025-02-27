@@ -4,17 +4,14 @@ from plugins.infraestructures.harmonizer_infra import harmonize_supplies, harmon
 import settings
 import beelib
 import os
-from plugins.infraestructures import InfrastructuresPlugin
 
 config = beelib.beeconfig.read_config()
-app = faust.App('datadis.harm', topic_disable_leader=True, broker=f"kafka://{config['kafka']['host']}:{config['kafka']['port']}")
+app = faust.App('datadis.icat.harm', topic_disable_leader=True, broker=f"kafka://{config['kafka']['host']}:{config['kafka']['port']}")
 
 static = app.topic(settings.TOPIC_STATIC, internal=True, partitions=settings.TOPIC_STATIC_PARTITIONS,
                    value_serializer='json')
-ts = app.topic(InfrastructuresPlugin.get_topic(), internal=True, partitions=settings.TOPIC_TS_PARTITIONS,
-               value_serializer='json')
 supplies_table = app.Table('datadis.supplies_table_cache', partitions=settings.TOPIC_STATIC_PARTITIONS)
-harmonize_supply = app.topic('datadis.harmonize_supplies',  internal=True, partitions=settings.TOPIC_STATIC_PARTITIONS,
+harmonize_supply = app.topic('datadis.icat.harmonize_supplies',  internal=True, partitions=settings.TOPIC_STATIC_PARTITIONS,
                              value_serializer='json')
 
 
@@ -52,17 +49,6 @@ async def process_table(records):
             for k in supplies_table.keys():
                 print(k)
             end_process()
-
-
-@app.agent(ts)
-async def process_ts(records):
-    async for record in records:
-        if "icat" not in record['kwargs']['dblist']:
-            continue
-        if record['kwargs']['property'] not in ["energy-active"]:
-            continue
-        harmonize_timeseries(record['data'], record['kwargs']['freq'], record['kwargs']['property'])
-
 
 if __name__ == '__main__':
     app.main()
