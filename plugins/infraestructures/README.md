@@ -35,10 +35,10 @@ We can see the origin and the harmonized field of each of the properties as well
 
 ### saref:Measurement
 #### Node properties
-| Origin                              | Harmonization             |
-|-------------------------------------|---------------------------|
-| hash(Datadis.cups<br/>Datadis.prop) | bigg:hash                 |
-| Datadis.freq                        | bigg:measurementFrequency |
+| Origin                          | Harmonization             |
+|---------------------------------|---------------------------|
+| hash(Datadis.cups+Datadis.prop) | bigg:hash                 |
+| Datadis.freq                    | bigg:measurementFrequency |
 
 
 #### Node relations: 
@@ -63,10 +63,10 @@ We can see the origin and the harmonized field of each of the properties as well
 
 ### saref:Measurement
 #### Node properties
-| Origin                                            | Harmonization             |
-|---------------------------------------------------|---------------------------|
-| hash(Datadis.cups<br/>Datadis.freq<br/>patrimony) | bigg:hash                 |
-| Datadis.freq                                      | bigg:measurementFrequency |
+| Origin                                    | Harmonization             |
+|-------------------------------------------|---------------------------|
+| hash(Datadis.cups+Datadis.freq+patrimony) | bigg:hash                 |
+| Datadis.freq                              | bigg:measurementFrequency |
 
 #### Node relations
 | Origin                        | Node 1             | Relation                     | Node 2         |
