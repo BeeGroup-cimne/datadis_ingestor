@@ -7,52 +7,45 @@ The following image depicts the workflow of the script.
 
 ## Gather data
 
-It consists on a set of plugins to obtain the users and passwords, then a mapreduce is launched to gather all the data.
+The data gathering process consists of a set of plugins that collect users and passwords from multiple databases and 
+store them in a Redis queue. This queue is then processed to retrieve the devices assigned to each user, which are 
+uploaded into another Redis instance. Finally, the second queue, containing user-device mappings, is processed to 
+extract the data from each device.
 
-###### Mapreduce description:
-```
-    > STEP 1:
-    MAP
-      input -> user,password,source_db
-      output-> id,user,password,source_db
-    REDUCE
-      input -> id,user,password,source_db
-        - get_supplies as CUPS
-      output-> id CUPS,user,password,source_db
-    
-    > STEP 2:
-    MAP
-      input -> id CUPS,user,password,source_db
-      output-> id CUPS,user,password,source_db
-    REDUCE
-      input -> id CUPS,user,password,source_db
-        - get_contracts
-        - send CUPS and CONTRACTS to harmonizer
-        - get_consumption as CONS
-        - send CONS to harmonizer
-      output -> null
-```
-###### Howto:
-To run the gathering application, execute the python script with the following parameters:
+###### Howto
+The data gathering process consists of a two-step application:
+
+### 1. Producer  
+The producer collects user data and can be started with the following command:
 
 ```bash
-python3 launcher.py
+python3 launcher.py -p last -l producer
+```
+### 2. Consumer  
+The consumers process the user queue, generate a new devices queue, process it, and retrieve data from the devices. You can start the consumers with:
+```bash
+python3 launcher.py -p last -l consumer
 ```
 
 ## Harmonize data
 
-To harmonize the gathered data a faust application have been developed
+To harmonize the gathered data, Faust applications have been developed.  
+
+- One application stores the raw timeseries data in HBase.  
+- Another application harmonizes the supply data into the corresponding Neo4j database. And if set up, stores the 
+harmonized timeseries data into the corresponding database.
 
 ###### Howto:
-run the raw data store:
+Run the following command to store raw data in HBase:  
 ```bash
 python3 -m store_raw worker -l info
 ```
-run the harmonizers by source
-
+Execute the appropriate command based on the data source:
 ```bash
-# icaen
+# ICAEN
 python3 -m plugins.icaen worker -l info
+# Infraestructures
+python3 -m plugins.infraestructures worker -l info
 ```
 
 ## Deploy in production
@@ -61,9 +54,12 @@ To deploy in production, we need to dockerize the project using the included Doc
 ```bash
 docker buildx build --push -t docker.tech.beegroup-cimne.com/jobs/datadis . --provenance false
 ```
-then, using the kubernetes yamls included in kubeconfigs, we can deploy the project to kubernetes
+Using the Kubernetes YAML configurations included in `kubeconfigs`, deploy the project to the cluster:
+```bash
+kubectl apply -f kubeconfigs/services.yaml 
+```
 
-create the required secrets:
+Create the required secrets:
 ```bash
 #basic secret
 kubectl create secret generic datadis-harmonize-secret --from-file=config.json=config.json -n datadis
