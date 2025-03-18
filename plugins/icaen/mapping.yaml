@@ -10,7 +10,7 @@ mappings:
     s: icaen:BUILDINGSPACE-$(ens)
     po:
       - [ bigg:isObservedByDevice, icaen:DEVICE-DatadisSource-$(cups)]
-      - [ bigg:bigg__hasUtilityPointOfDelivery, icaen:SUPPLY-$(cups)]
+      - [ bigg:hasUtilityPointOfDelivery, icaen:SUPPLY-$(cups)]
 
   devices:
     sources:
