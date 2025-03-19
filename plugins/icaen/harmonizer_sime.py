@@ -32,15 +32,27 @@ def fuzzy_locations(adm):
 def harmonize_supplies(data):
     df = pd.DataFrame(data)
     config = beelib.beeconfig.read_config("plugins/icaen/config_icaen.json")
+
+    # If the CUPS is old, keep its relationship with its current ENS
     driver = neo4j.GraphDatabase().driver(**config['neo4j'])
     with driver.session() as session:
         cups_ens = session.run("""MATCH (n:bigg__UtilityPointOfDelivery)<-[:bigg__hasUtilityPointOfDelivery]-
         (:bigg__BuildingSpace)<-[:bigg__hasSpace]-(b:bigg__Building) 
         RETURN distinct n.bigg__pointOfDeliveryIDFromOrganization as cups, b.bigg__buildingIDFromOrganization 
         as ens""").data()
-        cups_ens = {v['ens']: v['cups'] for v in cups_ens}
+        cups_ens = {v['cups']: v['ens'] for v in cups_ens}
     df['supply_name'] = df['cups'].str[:20]
     df['ens'] = df.supply_name.map(cups_ens)
+
+    # If the CUPS is new, then link it to the corresponding generic building
+    driver = neo4j.GraphDatabase().driver(**config['neo4j'])
+    with driver.session() as session:
+        nif_ens = session.run("""MATCH (o:bigg__Organization)-[:bigg__hasSubOrganization]->(g:bigg__Organization)-
+        [:bigg__managesBuilding]->(b:bigg__Building) WHERE g.generic=1
+        RETURN o.bigg__organizationIDFromOrganization as nif, b.bigg__buildingIDFromOrganization as ens""").data()
+        nif_ens = {v['nif']: v['ens'] for v in nif_ens}
+    df.loc[df["ens"].isna(), "ens"] = df["nif"].map(nif_ens)
+
     locations_mun = fuzzy_locations("A.ADM3")
     locations_prov = fuzzy_locations("A.ADM2")
     municipalities = df['municipality'].unique()
