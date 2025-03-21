@@ -128,6 +128,7 @@ class DatadisGatherer:
             if 'datetime' in entry and isinstance(entry['datetime'], pd.Timestamp):
                 entry['datetime'] = entry['datetime'].isoformat()
 
+        producer = beelib.beekafka.create_kafka_producer(self.config['kafka'], encoding="JSON")
         for db in dblist:
             kwargs.update({"dblist": [db]})
             kwargs.update({'collection_type': collection_type})
@@ -136,10 +137,10 @@ class DatadisGatherer:
 
             logger.debug(f"Sending timeseries to Kafka", extra={"phase": "GATHER", "tables": tables})
 
-            producer = beelib.beekafka.create_kafka_producer(self.config['kafka'], encoding="JSON")
             beelib.beekafka.send_to_kafka(producer, topic, key, data,
                                           tables=tables, row_keys=row_keys, kwargs=kwargs)
-
+        producer.flush()
+        producer.close()
 
     def parse_arguments(self, row, type_params, date_ini, date_end):
         arguments = {}
