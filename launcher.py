@@ -44,6 +44,7 @@ def get_all_users():
     # users = users[users['authorized_nif'].isna]
     users['authorized_nif'] = users['authorized_nif'].apply(lambda x: x + [''] if x else x)
     users = users.explode('authorized_nif')
+    users["authorized_nif"] = users["authorized_nif"].fillna("")
     users = pd.DataFrame(users.groupby(["username", "password", "authorized_nif", "tables", "row_keys"])['source'].apply(list)).reset_index()
 
     # We reverse the previous tuples transformation
