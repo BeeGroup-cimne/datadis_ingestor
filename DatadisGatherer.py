@@ -325,24 +325,29 @@ class DatadisGatherer:
             logger.info(f"Login success for data", extra={'user': user, "phase": "GATHER"})
 
             for supply in supplies:
-                contracts_dd = Datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
-                                                     distributor_code=supply['distributorCode'], authorized_nif=nif)
-                contract = pd.DataFrame.from_records(contracts_dd).set_index('startDate') \
-                    .reset_index().iloc[-1].to_dict()
-                logger.info(f"Contracts gathered", extra={'user': user, "phase": "GATHER"})
-                supply['nif'] = user
-                supply['authorized_nif'] = nif
-                mongo = pymongo.MongoClient(
-                    f"mongodb://{self.config['mongo']['user']}:{self.config['mongo']['password']}@"
-                    f"{self.config['mongo']['host']}:{self.config['mongo']['port']}/{self.config['mongo']['database']}")
-                datadis_devices = mongo[self.config['mongo']['database']][self.config['mongo']['collection']]
-                device = self.get_device(supply, datadis_devices)
-                downloaded_elems = self.download_device(supply, device, datadis_devices, dblist, tables, row_keys)
-                supply['measurements'] = downloaded_elems
-                self.save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply, row_keys,
-                                       dblist, tables)
-                self.save_datadis_data(settings.TOPIC_STATIC, "contracts", contract['cups'], contract,
-                                       row_keys, dblist, tables)
+                try:
+                    contracts_dd = Datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
+                                                         distributor_code=supply['distributorCode'], authorized_nif=nif)
+                    contract = pd.DataFrame.from_records(contracts_dd).set_index('startDate') \
+                        .reset_index().iloc[-1].to_dict()
+                    logger.info(f"Contracts gathered", extra={'user': user, "phase": "GATHER"})
+                    supply['nif'] = user
+                    supply['authorized_nif'] = nif
+                    mongo = pymongo.MongoClient(
+                        f"mongodb://{self.config['mongo']['user']}:{self.config['mongo']['password']}@"
+                        f"{self.config['mongo']['host']}:{self.config['mongo']['port']}/{self.config['mongo']['database']}")
+                    datadis_devices = mongo[self.config['mongo']['database']][self.config['mongo']['collection']]
+                    device = self.get_device(supply, datadis_devices)
+                    downloaded_elems = self.download_device(supply, device, datadis_devices, dblist, tables, row_keys)
+                    supply['measurements'] = downloaded_elems
+                    self.save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply, row_keys,
+                                           dblist, tables)
+                    self.save_datadis_data(settings.TOPIC_STATIC, "contracts", contract['cups'], contract,
+                                           row_keys, dblist, tables)
+                except Exception as e:
+                    logger.error(f"Error", extra={"phase": "GATHER", "user": user, "exception": str(e),
+                                                  "authorized_nif": nif, ", db_list": dblist})
+
         except Exception as e:
             logger.error(f"Error", extra={"phase": "GATHER", "user": user, "exception": str(e),
                                           "authorized_nif": nif, ", db_list": dblist})
