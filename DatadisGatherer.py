@@ -323,14 +323,8 @@ class DatadisGatherer:
         try:
             Datadis.connection(username=user, password=password, timeout=1000)
             logger.info(f"Login success for data", extra={'user': user, "phase": "GATHER"})
-
             for supply in supplies:
                 try:
-                    contracts_dd = Datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
-                                                         distributor_code=supply['distributorCode'], authorized_nif=nif)
-                    contract = pd.DataFrame.from_records(contracts_dd).set_index('startDate') \
-                        .reset_index().iloc[-1].to_dict()
-                    logger.info(f"Contracts gathered", extra={'user': user, "phase": "GATHER"})
                     supply['nif'] = user
                     supply['authorized_nif'] = nif
                     mongo = pymongo.MongoClient(
@@ -342,6 +336,11 @@ class DatadisGatherer:
                     supply['measurements'] = downloaded_elems
                     self.save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply, row_keys,
                                            dblist, tables)
+                    contracts_dd = Datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
+                                                         distributor_code=supply['distributorCode'], authorized_nif=nif)
+                    contract = pd.DataFrame.from_records(contracts_dd).set_index('startDate') \
+                        .reset_index().iloc[-1].to_dict()
+                    logger.info(f"Contracts gathered", extra={'user': user, "phase": "GATHER"})
                     self.save_datadis_data(settings.TOPIC_STATIC, "contracts", contract['cups'], contract,
                                            row_keys, dblist, tables)
                 except Exception as e:
