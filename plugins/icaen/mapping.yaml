@@ -44,6 +44,7 @@ mappings:
       - [ bigg:startDate, $(startDate), xsd:dateTime ]
       - [ bigg:endDate, $(endDate), xsd:dateTime ]
       - [ bigg:pointOfDeliveryIDFromOrganization, $(supply_name) ]
+      - [ bigg:stateCancelled, $(stateCancelled) ]
       - [ bigg:hasUtilityType, bigg:ElectricUtility ]
       - [ bigg:hasDevice, icaen:DEVICE-DatadisSource-$(cups) ]
       - [ bigg:updateSupply, $(update_date), xsd:dateTime]
