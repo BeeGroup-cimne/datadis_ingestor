@@ -249,6 +249,96 @@ spec:
           restartPolicy: Never
           imagePullSecrets:
           - name: registrypullsecret
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: datadis-gather-gather-repair
+  namespace: datadis
+spec:
+  suspend: false
+  schedule: "0 22 * * 0"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            logger: datadis-logger
+        spec:
+          hostAliases:
+          - ip: "10.0.88.76"
+            hostnames:
+            - "master1.internal"
+          - ip: "10.0.87.95"
+            hostnames:
+              - "master2.internal"
+          - ip: "10.0.88.132"
+            hostnames:
+              - "worker1.internal"
+          - ip: "10.0.86.33"
+            hostnames:
+              - "worker2.internal"
+          - ip: "10.0.87.145"
+            hostnames:
+              - "worker3.internal"
+          - ip: "10.0.86.214"
+            hostnames:
+              - "worker4.internal"
+          - ip: "10.0.129.220"
+            hostnames:
+              - "kafka1.internal"
+          - ip: "10.0.88.175"
+            hostnames:
+              - "database1-vpn"
+          - ip: "10.0.88.151"
+            hostnames:
+              - "database2-vpn"
+          - ip: "10.0.87.50"
+            hostnames:
+              - "database3-vpn"
+          containers:
+          - name: datadis-gather
+            image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
+            command: ["python3", "launcher.py", "-p", "last", "-l", "producer"]
+            #command: ["/bin/sh", "-ec", "sleep 1000"]
+            env:
+              - name: CONF_FILE
+                value: "config.json"
+            volumeMounts:
+            - name: datadis-harmonize-secret
+              mountPath: /home/ubuntu/datadis/config.json
+              subPath: config.json
+            - name: datadis-icaen-secret
+              mountPath: /home/ubuntu/datadis/plugins/icaen/config_icaen.json
+              subPath: config_icaen.json
+            - name: datadis-icat-secret
+              mountPath: /home/ubuntu/datadis/plugins/infraestructures/config_infra.json
+              subPath: config_infra.json
+          volumes:
+          - name: datadis-harmonize-secret
+            secret:
+              secretName: datadis-harmonize-secret
+              items:
+              - key: config.json
+                path: config.json
+          - name: datadis-icaen-secret
+            secret:
+              secretName: datadis-icaen-secret
+              items:
+                - key: config_icaen.json
+                  path: config_icaen.json
+          - name: datadis-icat-secret
+            secret:
+              secretName: datadis-icat-secret
+              items:
+                - key: config_infra.json
+                  path: config_infra.json
+          restartPolicy: Never
+          imagePullSecrets:
+          - name: registrypullsecret
 
 ---
 apiVersion: batch/v1
@@ -257,7 +347,7 @@ metadata:
   name: datadis-gather-repair
   namespace: datadis
 spec:
-  suspend: true
+  suspend: false
   schedule: "0 22 * * 0"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
