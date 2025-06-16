@@ -11,6 +11,8 @@ import settings
 import neo4j
 import beelib
 import numpy as np
+import isodate
+
 
 time_to_timedelta = {
     "PT1H": timedelta(hours=1),
@@ -27,6 +29,28 @@ def fuzzy_locations(adm):
         }}
     """)
     return {str(x[0]): str(x[1]).split("/")[-2] for x in list(res)}
+
+
+def send_to_kafka(producer, kafka_topic, df_to_send):
+    df_list = df_to_send.to_list()
+    data = None
+    for i in range(0, len(df_list), 500):
+        for data in df_list[i:i + 500]:
+            producer.send(kafka_topic, data)
+        producer.flush()
+    return data
+
+def harmonize_for_influx(data, timestamp_key, end, value_key, hash_key, property_key, is_real, freq):
+    """harmonizes the timeseries to be sent to druid"""
+    to_save = {
+        "start": int(data[timestamp_key]),
+        "end": int((data[end])) - 1,
+        "value": data[value_key],
+        "isReal": is_real,
+        "hash": data[hash_key],
+        "property": data[property_key]
+    }
+    return to_save
 
 
 def harmonize_supplies(data):
@@ -161,6 +185,16 @@ def harmonize_timeseries(data, freq, prop):
     beelib.beehbase.save_to_hbase(df_final.to_dict(orient="records"), table_name, config['hbase']['connection'],
                               [("v", ["value"]), ("info", ["end", "isReal"])],
                               ["bucket", "hash", "start"])
+    config_kafka = beelib.beeconfig.read_config('config.json')
+    producer = beelib.beekafka.create_kafka_producer(config_kafka['kafka'], encoding="JSON")
+    df_final['freq'] = freq
+    df_final['property'] = prop
+    df_to_save = df_final.reset_index().apply(
+        harmonize_for_influx, timestamp_key="start", end="end", value_key="value",
+        hash_key="hash",
+        property_key="property", is_real=True, freq=freq,
+        axis=1)
+    send_to_kafka(producer, 'sime.influx', df_to_save)
 
 
 def end_process():
