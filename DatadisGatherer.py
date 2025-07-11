@@ -278,12 +278,8 @@ class DatadisGatherer:
             device = {
                 "_id": supply['cups']
             }
-        has_init_date = True
-        try:
-            date_ini = datetime.strptime(supply['validDateFrom'], '%Y/%m/%d')
-        except ValueError:
-            has_init_date = False
-            date_ini = datetime.today().replace(hour=0, day=1, minute=0, second=0, microsecond=0) - relativedelta(
+
+        date_ini = datetime.today().replace(hour=0, day=1, minute=0, second=0, microsecond=0) - relativedelta(
                 months=23)
         now = datetime.today().date() + relativedelta(day=31, hour=23, minute=59, second=59)
         try:
@@ -308,7 +304,6 @@ class DatadisGatherer:
                 if k not in device[type_params["mongo_collection"]]:
                     device[type_params["mongo_collection"]].update({
                         k: {
-                            "has_ini_date": has_init_date,
                             "date_ini_block": date_ini_block,
                             "date_end_block": date_end_block,
                             "values": 0,

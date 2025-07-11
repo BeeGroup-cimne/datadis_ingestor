@@ -11,7 +11,6 @@ import settings
 import neo4j
 import beelib
 import numpy as np
-import isodate
 
 
 time_to_timedelta = {
@@ -40,15 +39,15 @@ def send_to_kafka(producer, kafka_topic, df_to_send):
         producer.flush()
     return data
 
-def harmonize_for_influx(data, timestamp_key, end, value_key, hash_key, property_key, is_real, freq):
+
+def harmonize_for_influx(data, timestamp_key, end, value_key, hash_key, is_real):
     """harmonizes the timeseries to be sent to druid"""
     to_save = {
         "start": int(data[timestamp_key]),
         "end": int((data[end])) - 1,
         "value": data[value_key],
         "isReal": is_real,
-        "hash": data[hash_key],
-        "property": data[property_key]
+        "hash": data[hash_key]
     }
     return to_save
 
@@ -86,11 +85,13 @@ def harmonize_supplies(data):
     df['municipality'] = df['municipality'].map(fuzzy_map_mun)
     df['province'] = df['province'].map(fuzzy_map_prov)
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
-    df['startDate'] = pd.to_datetime(df['startDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
-    df['endDate'] = pd.to_datetime(df['endDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    df['startDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[-1]['startDate']), format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    df['endDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[-1]['endDate']), format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     df['endDate'] = df['endDate'].astype('object')
     df['stateCancelled'] = np.where(df['endDate'] > df['startDate'], 'Accepted', None)
     df['nif_ab'] = df['endDate'].apply(lambda x: 'Alta' if pd.isna(x) else x)
+    df['contractedPowerkW'] = df['contractedPowerkW'].apply(lambda x: '-'.join(x) if isinstance(x, list) else x)
+    df['lastMarketerDate'] = pd.to_datetime(df['lastMarketerDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     map_and_save({"supplies": df.to_dict(orient="records")},
                  "plugins/icaen/mapping.yaml", config)
     with driver.session() as session:
@@ -191,8 +192,7 @@ def harmonize_timeseries(data, freq, prop):
     df_final['property'] = prop
     df_to_save = df_final.reset_index().apply(
         harmonize_for_influx, timestamp_key="start", end="end", value_key="value",
-        hash_key="hash",
-        property_key="property", is_real=True, freq=freq,
+        hash_key="hash", is_real=True, freq=freq,
         axis=1)
     send_to_kafka(producer, 'sime.influx', df_to_save)
 
@@ -204,4 +204,3 @@ def end_process():
         session.run("""Match(n:bigg__UtilityPointOfDelivery) 
         WHERE n.bigg__newSupply is NULL 
         SET n.bigg__newSupply=true""")
-

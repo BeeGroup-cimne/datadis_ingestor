@@ -7,7 +7,6 @@ import plugins
 import logging
 import argparse
 import pandas as pd
-from neo4j import GraphDatabase
 from pythonjsonlogger import jsonlogger
 from DatadisGatherer import DatadisGatherer
 
