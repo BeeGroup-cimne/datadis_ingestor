@@ -85,12 +85,14 @@ def harmonize_supplies(data):
     df['municipality'] = df['municipality'].map(fuzzy_map_mun)
     df['province'] = df['province'].map(fuzzy_map_prov)
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
-    df['startDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[-1]['startDate']), format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
-    df['endDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[-1]['endDate']), format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    df['startDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[-1]['startDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    df['endDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[-1]['endDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     df['endDate'] = df['endDate'].astype('object')
     df['stateCancelled'] = np.where(df['endDate'] > df['startDate'], 'Accepted', None)
     df['nif_ab'] = df['endDate'].apply(lambda x: 'Alta' if pd.isna(x) else x)
-    df['contractedPowerkW'] = df['contractedPowerkW'].apply(lambda x: '-'.join(x) if isinstance(x, list) else x)
+    df['contractedPowerkW'] = df['contractedPowerkW'].apply(
+        lambda x: '-'.join(str(item) for item in x) if isinstance(x, list) else x
+    )
     df['lastMarketerDate'] = pd.to_datetime(df['lastMarketerDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     map_and_save({"supplies": df.to_dict(orient="records")},
                  "plugins/icaen/mapping.yaml", config)
@@ -133,6 +135,7 @@ def create_sensor_measurement(device_uri, sensor_uri, measurement_uri, sensor):
     rdf_tmp.add((rdflib.URIRef(sensor_uri), rdflib.URIRef("http://bigg-project.eu/ontology#hasMeasurement"), rdflib.URIRef(measurement_uri)))
     rdf_tmp.add((rdflib.URIRef(measurement_uri), rdflib.RDF.type, rdflib.URIRef("http://bigg-project.eu/ontology#Measurement")))
     rdf_tmp.add((rdflib.URIRef(measurement_uri), rdflib.RDF.type, rdflib.URIRef("http://bigg-project.eu/ontology#TimeSeriesPoint")))
+    rdf_tmp.add((rdflib.URIRef(measurement_uri), rdflib.URIRef("http://bigg-project.eu/ontology#hash"), rdflib.Literal(measurement_uri.split('#')[1])))
     return rdf_tmp
 
 
@@ -192,7 +195,7 @@ def harmonize_timeseries(data, freq, prop):
     df_final['property'] = prop
     df_to_save = df_final.reset_index().apply(
         harmonize_for_influx, timestamp_key="start", end="end", value_key="value",
-        hash_key="hash", is_real=True, freq=freq,
+        hash_key="hash", is_real=True,
         axis=1)
     send_to_kafka(producer, 'sime.influx', df_to_save)
 
