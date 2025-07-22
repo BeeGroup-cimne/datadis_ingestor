@@ -99,9 +99,9 @@ data_types_dict = {
 
 def get_devices_from_user_datadis(user, password, authorized_nif):
     try:
-        datadis.connection(username=user, password=password, timeout=1000)
+        datadis.Datadis.connection(username=user, password=password, timeout=1000)
         logger.info(f"Login success", extra={'user': user, "phase": "GATHER"})
-        supplies = datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
+        supplies = datadis.Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
         if not supplies:
             supplies = []
             logger.error(f"User empty", extra={"phase": "GATHER", "user": user,
@@ -175,7 +175,7 @@ def get_mongo_info(supply, datadis_devices):
 
 def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
     try:
-        datadis.connection(username=user, password=password, timeout=1000)
+        datadis.Datadis.connection(username=user, password=password, timeout=1000)
         logger.info(f"Login success for data", extra={'user': user, "phase": "GATHER"})
         for supply in supplies:
             try:
@@ -190,7 +190,7 @@ def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
                 supply['measurements'] = downloaded_elems
                 save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply, row_keys,
                                        dblist, tables, config)
-                contracts_dd = datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
+                contracts_dd = datadis.Datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
                                                      distributor_code=supply['distributorCode'], authorized_nif=nif)
                 contract = pd.DataFrame.from_records(contracts_dd).set_index('startDate') \
                     .reset_index().iloc[-1].to_dict()
@@ -272,7 +272,7 @@ def download_chunk(supply, type_params, status):
                      extra={"phase": "GATHER"})
         kwargs = parse_arguments(supply, type_params, date_ini_req, date_end_req)
         # kwargs.update('authorized_nif': supply['authorized_nif'], **kwargs)
-        consumption = datadis.datadis_query(type_params['endpoint'], **kwargs)
+        consumption = datadis.Datadis.datadis_query(type_params['endpoint'], **kwargs)
         if not consumption:
             raise Exception(f"No data could be found")
         return consumption
@@ -289,7 +289,7 @@ def send_final_message(config):
     if metadata is None:
         raise ValueError(f"The topic does not exist")
     for part in metadata:
-        data = {"kwargs":{"collection_type": "FINAL_MESSAGE"}}['kwargs']['collection_type']
+        data = {"kwargs":{"collection_type": "FINAL_MESSAGE"}}
         producer.send(settings.TOPIC_STATIC, value=data, partition=part)
 
 

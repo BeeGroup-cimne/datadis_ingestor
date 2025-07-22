@@ -15,7 +15,7 @@ from urllib.parse import quote
 import os
 import ast
 import logging
-from . import InfrastructuresPlugin
+from plugins.infraestructures import InfrastructuresPlugin
 
 program = logging.getLogger("ManttestIngestor")
 program.setLevel(logging.DEBUG)

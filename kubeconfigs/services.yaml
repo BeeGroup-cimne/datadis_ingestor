@@ -57,10 +57,10 @@ spec:
               value: "config.json"
           volumeMounts:
           - name: datadis-harmonize-secret
-            mountPath: /home/ubuntu/datadis/config.json
+            mountPath: /datadis/config.json
             subPath: config.json
           - name: datadis-icaen-secret
-            mountPath: /home/ubuntu/datadis/plugins/icaen/config.json
+            mountPath: /datadis/plugins/icaen/config.json
             subPath: config_icaen.json
       imagePullSecrets:
         - name: odin1pullsecret
@@ -138,10 +138,10 @@ spec:
               value: "config.json"
           volumeMounts:
           - name: datadis-harmonize-secret
-            mountPath: /home/ubuntu/datadis/config.json
+            mountPath: /datadis/config.json
             subPath: config.json
           - name: datadis-icat-secret
-            mountPath: /home/ubuntu/datadis/plugins/infraestructures/config.json
+            mountPath: /datadis/plugins/infraestructures/config.json
             subPath: config_infra.json
       imagePullSecrets:
         - name: odin1pullsecret
@@ -212,20 +212,20 @@ spec:
           containers:
           - name: datadis-gather-starter
             image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
-            command: ["python3", "launcher.py", "-l", "producer"]
+            command: ["python3", "launcher.py", "-l", "producer", "-n", "10"]
             #command: ["/bin/sh", "-ec", "sleep 1000"]
             env:
               - name: CONF_FILE
                 value: "config.json"
             volumeMounts:
             - name: datadis-harmonize-secret
-              mountPath: /home/ubuntu/datadis/config.json
+              mountPath: /datadis/config.json
               subPath: config.json
             - name: datadis-icaen-secret
-              mountPath: /home/ubuntu/datadis/plugins/icaen/config.json
+              mountPath: /datadis/plugins/icaen/config.json
               subPath: config_icaen.json
             - name: datadis-icat-secret
-              mountPath: /home/ubuntu/datadis/plugins/infraestructures/config.json
+              mountPath: /datadis/plugins/infraestructures/config.json
               subPath: config_infra.json
           volumes:
           - name: datadis-harmonize-secret
@@ -257,7 +257,7 @@ metadata:
   namespace: datadis
 spec:
   suspend: false
-  schedule: "0 22 * * 0"
+  schedule: "10 22 * * 5"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
@@ -305,19 +305,19 @@ spec:
           containers:
           - name: datadis-gather-consumer
             image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
-            command: ["python3", "launcher.py", "-l", "consumer"]
+            command: ["python3", "launcher.py", "-l", "consumer", "-n", "10"]
             env:
               - name: CONF_FILE
                 value: "config.json"
             volumeMounts:
             - name: datadis-harmonize-secret
-              mountPath: /home/ubuntu/datadis/config.json
+              mountPath: /datadis/config.json
               subPath: config.json
             - name: datadis-icaen-secret
-              mountPath: /home/ubuntu/datadis/plugins/icaen/config.json
+              mountPath: /datadis/plugins/icaen/config.json
               subPath: config_icaen.json
             - name: datadis-icat-secret
-              mountPath: /home/ubuntu/datadis/plugins/infraestructures/config.json
+              mountPath: /datadis/plugins/infraestructures/config.json
               subPath: config_infra.json
           volumes:
           - name: datadis-harmonize-secret

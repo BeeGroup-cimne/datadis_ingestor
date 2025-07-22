@@ -14,7 +14,7 @@ import settings
 import neo4j
 import beelib
 import numpy as np
-from . import SIMEImport
+from plugins.icaen import SIMEImport
 
 time_to_timedelta = {
     "PT1H": timedelta(hours=1),
@@ -224,46 +224,47 @@ def end_process():
     with driver.session() as session:
         data = session.run(query).data()
     df = pd.DataFrame.from_records([x['data'] for x in data])
-    filtered_df = df[df['nifs'].apply(lambda x: len(x) >= 2)]
+    if not df.empty:
+        filtered_df = df[df['nifs'].apply(lambda x: len(x) >= 2)]
 
-    for _, row in filtered_df.iterrows():
-        nifs = row['nifs']
-        max_nif_pair = max(nifs.items(), key=lambda item: item[1])
+        for _, row in filtered_df.iterrows():
+            nifs = row['nifs']
+            max_nif_pair = max(nifs.items(), key=lambda item: item[1])
 
-        if max_nif_pair[1] == 'Alta':
-            other_keys = [key[10:] for key in nifs if key != max_nif_pair[0]]
+            if max_nif_pair[1] == 'Alta':
+                other_keys = [key[10:] for key in nifs if key != max_nif_pair[0]]
+                query = f"""
+                        MATCH (u:bigg__UtilityPointOfDelivery)-[:bigg__hasDevice]->(n:bigg__Device{{uri:'{row.dev}'}})
+                        -[r:importedFromSource]->(d:DatadisSource)
+                        where d.username in {other_keys}
+                        REMOVE n.bigg__endDate
+                        REMOVE u.bigg__endDate
+                        DELETE r
+                        """
+                with driver.session() as session:
+                    session.run(query)
+
+            else:
+                query = f"""
+                        MATCH (u:bigg__UtilityPointOfDelivery)-[:bigg__hasDevice]->(n:bigg__Device{{uri:'{row.dev}'}})
+                        -[r:importedFromSource]->(d:DatadisSource)
+                        SET n.bigg__endDate = localdatetime("{max_nif_pair[1]}")
+                        SET u.bigg__endDate = localdatetime("{max_nif_pair[1]}")
+                        DELETE r
+                        """
+                with driver.session() as session:
+                    session.run(query)
+
+        unique_nifs = list(
+            set(key for dictionary in df["nifs"] if isinstance(dictionary, dict) for key in dictionary.keys())
+        )
+
+        # Delete all nifs properties
+        for nif in unique_nifs:
             query = f"""
-                    MATCH (u:bigg__UtilityPointOfDelivery)-[:bigg__hasDevice]->(n:bigg__Device{{uri:'{row.dev}'}})
-                    -[r:importedFromSource]->(d:DatadisSource)
-                    where d.username in {other_keys}
-                    REMOVE n.bigg__endDate
-                    REMOVE u.bigg__endDate
-                    DELETE r
+                    MATCH (n:bigg__Device) 
+                    WHERE n.{nif} IS NOT NULL
+                    REMOVE n.{nif}
                     """
             with driver.session() as session:
                 session.run(query)
-
-        else:
-            query = f"""
-                    MATCH (u:bigg__UtilityPointOfDelivery)-[:bigg__hasDevice]->(n:bigg__Device{{uri:'{row.dev}'}})
-                    -[r:importedFromSource]->(d:DatadisSource)
-                    SET n.bigg__endDate = localdatetime("{max_nif_pair[1]}")
-                    SET u.bigg__endDate = localdatetime("{max_nif_pair[1]}")
-                    DELETE r
-                    """
-            with driver.session() as session:
-                session.run(query)
-
-    unique_nifs = list(
-        set(key for dictionary in df["nifs"] if isinstance(dictionary, dict) for key in dictionary.keys())
-    )
-
-    # Delete all nifs properties
-    for nif in unique_nifs:
-        query = f"""
-                MATCH (n:bigg__Device) 
-                WHERE n.{nif} IS NOT NULL
-                REMOVE n.{nif}
-                """
-        with driver.session() as session:
-            session.run(query)
