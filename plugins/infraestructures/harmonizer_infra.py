@@ -15,7 +15,7 @@ from urllib.parse import quote
 import os
 import ast
 import logging
-
+from . import InfrastructuresPlugin
 
 program = logging.getLogger("ManttestIngestor")
 program.setLevel(logging.DEBUG)
@@ -90,7 +90,7 @@ def harmonize_supplies(data):
     df['cups'] = cups
 
     ### cups = cups + [x + '0F' for x in cups]
-    config = beelib.beeconfig.read_config("plugins/infraestructures/config_infra.json")
+    config = beelib.beeconfig.read_config(InfrastructuresPlugin.conf_file)
 
     cups = list(df['cups'].unique().tolist())
 
@@ -122,7 +122,7 @@ def harmonize_supplies(data):
     df.loc[df['patrimony'].isna(), 'hash_elec'] = pd.NA
 
 
-    config = beelib.beeconfig.read_config("plugins/infraestructures/config_infra.json")
+    config = beelib.beeconfig.read_config(InfrastructuresPlugin.conf_file)
 
 
     beelib.beetransformation.map_and_save({"supplies": df.to_dict(orient="records")},
@@ -180,9 +180,10 @@ def harmonize_timeseries(data, freq, prop):
 
 
 def end_process():
-    config = beelib.beeconfig.read_config("plugins/infraestructures/config_infra.json")
-    driver = neo4j.GraphDatabase.driver(**config['neo4j'])
-    with driver.session() as session:
-        session.run("""Match(n:bigg__UtilityPointOfDelivery) 
-        WHERE n.bigg__newSupply is NULL 
-        SET n.bigg__newSupply=true""")
+    pass
+    # config = beelib.beeconfig.read_config("plugins/infraestructures/config_infra.json")
+    # driver = neo4j.GraphDatabase.driver(**config['neo4j'])
+    # with driver.session() as session:
+    #     session.run("""Match(n:bigg__UtilityPointOfDelivery)
+    #     WHERE n.bigg__newSupply is NULL
+    #     SET n.bigg__newSupply=true""")

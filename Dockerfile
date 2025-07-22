@@ -1,11 +1,11 @@
-FROM docker.tech.beegroup-cimne.com/base_dockers/enma-jobs as cached
-USER root
+FROM python:3.10-slim-bookworm
 RUN apt-get update
-RUN python3 -m pip install --upgrade pip
-WORKDIR datadis
-RUN chown -R ubuntu .
+RUN apt-get install -y git
+RUN apt-get install -y gcc
+RUN apt-get install -y g++
+WORKDIR /datadis
 ADD requirements.txt requirements.txt
 RUN pip install -r requirements.txt
-USER ubuntu
-COPY --chown=ubuntu . .
-CMD ["python3"]
+ADD . .
+
+#  docker buildx build --platform linux/amd64,linux/arm64 --push -t 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor .

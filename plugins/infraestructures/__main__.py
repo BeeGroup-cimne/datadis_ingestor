@@ -18,11 +18,11 @@ harmonize_supply = app.topic('datadis.icat.harmonize_supplies',  internal=True, 
 @app.agent(static)
 async def join_supplies(records):
     async for record in records:
-        if "icat" not in record['kwargs']['dblist']:
-            continue
         if record['kwargs']['collection_type'] == "FINAL_MESSAGE":
             print("FINAL_MESSAGE received")
             await process_table.cast(value=record)
+            continue
+        if "icat" not in record['kwargs']['dblist']:
             continue
         try:
             tmp = supplies_table.pop(record['data']['cups'])
@@ -48,6 +48,7 @@ async def process_table(records):
             print("processing final event")
             for k in supplies_table.keys():
                 print(k)
+                del supplies_table[k]
             end_process()
 
 if __name__ == '__main__':

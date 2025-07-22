@@ -49,7 +49,7 @@ spec:
             - "database3-vpn"
       containers:
         - name: harmonizer-datadis-icaen
-          image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
+          image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
           command: [ "python3", "-m", "plugins.icaen", "worker", "-l", "info"]
           #command: ["/bin/sh", "-ec", "sleep 1000"]
           env:
@@ -60,10 +60,10 @@ spec:
             mountPath: /home/ubuntu/datadis/config.json
             subPath: config.json
           - name: datadis-icaen-secret
-            mountPath: /home/ubuntu/datadis/plugins/icaen/config_icaen.json
+            mountPath: /home/ubuntu/datadis/plugins/icaen/config.json
             subPath: config_icaen.json
       imagePullSecrets:
-        - name: registrypullsecret
+        - name: odin1pullsecret
 
       volumes:
         - name: datadis-harmonize-secret
@@ -130,7 +130,7 @@ spec:
             - "database3-vpn"
       containers:
         - name: harmonizer-datadis-icat
-          image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
+          image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
           command: [ "python3", "-m", "plugins.infraestructures", "worker", "-l", "info"]
           #command: ["/bin/sh", "-ec", "sleep 1000"]
           env:
@@ -141,10 +141,10 @@ spec:
             mountPath: /home/ubuntu/datadis/config.json
             subPath: config.json
           - name: datadis-icat-secret
-            mountPath: /home/ubuntu/datadis/plugins/infraestructures/config_infra.json
+            mountPath: /home/ubuntu/datadis/plugins/infraestructures/config.json
             subPath: config_infra.json
       imagePullSecrets:
-        - name: registrypullsecret
+        - name: odin1pullsecret
 
       volumes:
         - name: datadis-harmonize-secret
@@ -163,7 +163,7 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: datadis-gather
+  name: datadis-gather-starter
   namespace: datadis
 spec:
   suspend: false
@@ -210,9 +210,9 @@ spec:
             hostnames:
               - "database3-vpn"
           containers:
-          - name: datadis-gather
-            image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: ["python3", "launcher.py", "-p", "last", "-l", "producer"]
+          - name: datadis-gather-starter
+            image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
+            command: ["python3", "launcher.py", "-l", "producer"]
             #command: ["/bin/sh", "-ec", "sleep 1000"]
             env:
               - name: CONF_FILE
@@ -222,10 +222,10 @@ spec:
               mountPath: /home/ubuntu/datadis/config.json
               subPath: config.json
             - name: datadis-icaen-secret
-              mountPath: /home/ubuntu/datadis/plugins/icaen/config_icaen.json
+              mountPath: /home/ubuntu/datadis/plugins/icaen/config.json
               subPath: config_icaen.json
             - name: datadis-icat-secret
-              mountPath: /home/ubuntu/datadis/plugins/infraestructures/config_infra.json
+              mountPath: /home/ubuntu/datadis/plugins/infraestructures/config.json
               subPath: config_infra.json
           volumes:
           - name: datadis-harmonize-secret
@@ -248,103 +248,12 @@ spec:
                   path: config_infra.json
           restartPolicy: Never
           imagePullSecrets:
-          - name: registrypullsecret
+          - name: odin1pullsecret
 ---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: datadis-gather-starter-repair
-  namespace: datadis
-spec:
-  suspend: false
-  schedule: "0 22 * * 0"
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 1
-  jobTemplate:
-    spec:
-      backoffLimit: 0
-      template:
-        metadata:
-          labels:
-            logger: datadis-logger
-        spec:
-          hostAliases:
-          - ip: "10.0.88.76"
-            hostnames:
-            - "master1.internal"
-          - ip: "10.0.87.95"
-            hostnames:
-              - "master2.internal"
-          - ip: "10.0.88.132"
-            hostnames:
-              - "worker1.internal"
-          - ip: "10.0.86.33"
-            hostnames:
-              - "worker2.internal"
-          - ip: "10.0.87.145"
-            hostnames:
-              - "worker3.internal"
-          - ip: "10.0.86.214"
-            hostnames:
-              - "worker4.internal"
-          - ip: "10.0.129.220"
-            hostnames:
-              - "kafka1.internal"
-          - ip: "10.0.88.175"
-            hostnames:
-              - "database1-vpn"
-          - ip: "10.0.88.151"
-            hostnames:
-              - "database2-vpn"
-          - ip: "10.0.87.50"
-            hostnames:
-              - "database3-vpn"
-          containers:
-          - name: datadis-gather
-            image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: ["python3", "launcher.py", "-p", "last", "-l", "producer"]
-            #command: ["/bin/sh", "-ec", "sleep 1000"]
-            env:
-              - name: CONF_FILE
-                value: "config.json"
-            volumeMounts:
-            - name: datadis-harmonize-secret
-              mountPath: /home/ubuntu/datadis/config.json
-              subPath: config.json
-            - name: datadis-icaen-secret
-              mountPath: /home/ubuntu/datadis/plugins/icaen/config_icaen.json
-              subPath: config_icaen.json
-            - name: datadis-icat-secret
-              mountPath: /home/ubuntu/datadis/plugins/infraestructures/config_infra.json
-              subPath: config_infra.json
-          volumes:
-          - name: datadis-harmonize-secret
-            secret:
-              secretName: datadis-harmonize-secret
-              items:
-              - key: config.json
-                path: config.json
-          - name: datadis-icaen-secret
-            secret:
-              secretName: datadis-icaen-secret
-              items:
-                - key: config_icaen.json
-                  path: config_icaen.json
-          - name: datadis-icat-secret
-            secret:
-              secretName: datadis-icat-secret
-              items:
-                - key: config_infra.json
-                  path: config_infra.json
-          restartPolicy: Never
-          imagePullSecrets:
-          - name: registrypullsecret
-
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: datadis-gather-repair
+  name: datadis-gather-consumer
   namespace: datadis
 spec:
   suspend: false
@@ -394,9 +303,9 @@ spec:
             hostnames:
               - "database3-vpn"
           containers:
-          - name: datadis-gather-repair
-            image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: ["python3", "launcher.py", "-p", "repair", "-l", "consumer"]
+          - name: datadis-gather-consumer
+            image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
+            command: ["python3", "launcher.py", "-l", "consumer"]
             env:
               - name: CONF_FILE
                 value: "config.json"
@@ -405,10 +314,10 @@ spec:
               mountPath: /home/ubuntu/datadis/config.json
               subPath: config.json
             - name: datadis-icaen-secret
-              mountPath: /home/ubuntu/datadis/plugins/icaen/config_icaen.json
+              mountPath: /home/ubuntu/datadis/plugins/icaen/config.json
               subPath: config_icaen.json
             - name: datadis-icat-secret
-              mountPath: /home/ubuntu/datadis/plugins/infraestructures/config_infra.json
+              mountPath: /home/ubuntu/datadis/plugins/infraestructures/config.json
               subPath: config_infra.json
           volumes:
           - name: datadis-harmonize-secret
@@ -431,115 +340,6 @@ spec:
                   path: config_infra.json
           restartPolicy: Never
           imagePullSecrets:
-          - name: registrypullsecret
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: datadis-last-consumer
-  namespace: datadis
-spec:
-  suspend: false
-  schedule: "0 22 * * 5"
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 1
-  jobTemplate:
-    spec:
-      backoffLimit: 0
-      completions: 10
-      parallelism: 10
-      completionMode: Indexed
-      template:
-        metadata:
-          labels:
-            logger: datadis-logger
-        spec:
-          hostAliases:
-          - ip: "10.0.88.76"
-            hostnames:
-            - "master1.internal"
-          - ip: "10.0.87.95"
-            hostnames:
-              - "master2.internal"
-          - ip: "10.0.88.132"
-            hostnames:
-              - "worker1.internal"
-          - ip: "10.0.86.33"
-            hostnames:
-              - "worker2.internal"
-          - ip: "10.0.87.145"
-            hostnames:
-              - "worker3.internal"
-          - ip: "10.0.86.214"
-            hostnames:
-              - "worker4.internal"
-          - ip: "10.0.129.220"
-            hostnames:
-              - "kafka1.internal"
-          - ip: "10.0.88.175"
-            hostnames:
-              - "database1-vpn"
-          - ip: "10.0.88.151"
-            hostnames:
-              - "database2-vpn"
-          - ip: "10.0.87.50"
-            hostnames:
-              - "database3-vpn"
-          initContainers:
-          - name: datadis-last-consumer-wait
-            image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: [ "python3", "launcher.py", "-p", "last", "-l", "wait" ]
-            env:
-              - name: CONF_FILE
-                value: "config.json"
-            volumeMounts:
-              - name: datadis-harmonize-secret
-                mountPath: /home/ubuntu/datadis/config.json
-                subPath: config.json
-              - name: datadis-icaen-secret
-                mountPath: /home/ubuntu/datadis/plugins/icaen/config_icaen.json
-                subPath: config_icaen.json
-              - name: datadis-icat-secret
-                mountPath: /home/ubuntu/datadis/plugins/infraestructures/config_infra.json
-                subPath: config_infra.json
-          containers:
-          - name: datadis-last-consumer
-            image: docker.tech.beegroup-cimne.com/jobs/datadis:latest
-            command: ["python3", "launcher.py", "-p", "last", "-l", "consumer"]
-            env:
-              - name: CONF_FILE
-                value: "config.json"
-            volumeMounts:
-            - name: datadis-harmonize-secret
-              mountPath: /home/ubuntu/datadis/config.json
-              subPath: config.json
-            - name: datadis-icaen-secret
-              mountPath: /home/ubuntu/datadis/plugins/icaen/config_icaen.json
-              subPath: config_icaen.json
-            - name: datadis-icat-secret
-              mountPath: /home/ubuntu/datadis/plugins/infraestructures/config_infra.json
-              subPath: config_infra.json
-          volumes:
-          - name: datadis-harmonize-secret
-            secret:
-              secretName: datadis-harmonize-secret
-              items:
-              - key: config.json
-                path: config.json
-          - name: datadis-icaen-secret
-            secret:
-              secretName: datadis-icaen-secret
-              items:
-                - key: config_icaen.json
-                  path: config_icaen.json
-          - name: datadis-icat-secret
-            secret:
-              secretName: datadis-icat-secret
-              items:
-                - key: config_infra.json
-                  path: config_infra.json
-          restartPolicy: Never
-          imagePullSecrets:
-          - name: registrypullsecret
+          - name: odin1pullsecret
 
  #kubectl create secret generic datadis-harmonize-secret --from-file=config.json=config.json --from-file=.env=env -n datadis

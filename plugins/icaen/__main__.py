@@ -31,11 +31,11 @@ harmonize_supply = app.topic('datadis.harmonize_supplies',  internal=True, parti
 @app.agent(static)
 async def join_supplies(records):
     async for record in records:
-        if "sime" not in record['kwargs']['dblist']:
-            continue
         if record['kwargs']['collection_type'] == "FINAL_MESSAGE":
             logger.debug("FINAL_MESSAGE received", extra={'phase': 'HARMONIZE'})
             await process_table.cast(value=record)
+            continue
+        if "sime" not in record['kwargs']['dblist']:
             continue
         try:
             tmp = supplies_table.pop(record['data']['cups'])
@@ -61,6 +61,7 @@ async def process_table(records):
             logger.debug("Processing final event", extra={'phase': 'HARMONIZE_END'})
             for k in supplies_table.keys():
                 logger.debug("Supply", extra={'phase': 'HARMONIZE', 'supply': k})
+                del supplies_table[k]
             end_process()
 
 

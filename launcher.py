@@ -8,8 +8,8 @@ import logging
 import argparse
 import pandas as pd
 from pythonjsonlogger import jsonlogger
-from DatadisGatherer import DatadisGatherer
-
+from DatadisGatherer import get_devices_from_user_datadis, get_data, send_final_message
+import dotenv
 
 logger = logging.getLogger()
 logger.setLevel("DEBUG")
@@ -17,13 +17,6 @@ logHandler = logging.StreamHandler()
 formatter = jsonlogger.JsonFormatter('%(asctime)s - %(levelname)s - %(name)s: %(message)s')
 logHandler.setFormatter(formatter)
 logger.addHandler(logHandler)
-
-MODULE_NAME = "datadis_gather"
-HDFS_PATH = f'tmp/{MODULE_NAME}'
-MOUNTS = 'YARN_CONTAINER_RUNTIME_DOCKER_MOUNTS=/hadoop_stack:/hadoop_stack:ro'
-IMAGE = 'YARN_CONTAINER_RUNTIME_DOCKER_IMAGE=docker.tech.beegroup-cimne.com/jobs/datadis:latest'
-RUNTYPE = 'YARN_CONTAINER_RUNTIME_TYPE=docker'
-NUM_PROCESSES = 10
 
 
 def get_all_users():
@@ -53,141 +46,96 @@ def get_all_users():
     return users
 
 
-def redis_barrier_sync(num_processes, red, barrier_id):
-    # Marca aquest procés com a arribat
-    red.incr(barrier_id)
-
-    logger.debug(f"Waiting for other processes to finish", extra={'phase': "WAIT"})
-    # Comprova si tots els processos han arribat
-    while int(red.get(barrier_id)) < num_processes:
-        print(f'Number of processes done: {int(red.get(barrier_id))}')
-        time.sleep(0.2)
-    logger.debug(f"Other processes done, execution will continue", extra={'phase': "WAIT"})
-
-    # Making sure all processes notice that they must proceed before the deletion of their key
-    time.sleep(5)
-
-
 def get_users(config):
     s = time.time()
     logger.info("Starting the ingestor", extra={'phase': "START"})
 
     logger.debug("Getting users from plugins", extra={'phase': "GATHER"})
+    red = redis.Redis(**config['redis']['connection'])
+    red.delete(config['redis']['users'])
+    red.delete(config['redis']['devices'])
+    red.delete(config['redis']['dev_tickets'])
     users = get_all_users()
     logger.debug(f"Users retrieval took: {time.time()-s} seconds", extra={'phase': "GATHER"})
     s = time.time()
-    logger.debug("Uploading users to Redis file", extra={'phase': "GATHER"})
-
-    red = redis.Redis(**config['redis'])
+    logger.debug("Uploading users to Redis", extra={'phase': "GATHER"})
     for _, row in users.iterrows():
         logger.debug("Gathered users", extra={"username": row['username'], 'phase': "GATHER"})
-        red.lpush('datadis.users', pickle.dumps(row.to_dict()))
+        red.lpush(config['redis']['users'], pickle.dumps(row.to_dict()))
     logger.debug(f"Users upload took: {time.time()-s} seconds")
 
 
-def get_datadis_devices(dg, config):
-    red = redis.Redis(**config['redis'])
+def sync_processors(config, num_processes, barrier_id):
+    red = redis.Redis(**config['redis']['connection'])
+    red.incr(barrier_id)
+    logger.debug(f"Waiting for other processes to finish", extra={'phase': "WAIT"})
+    while (n := int(red.get(barrier_id))) < num_processes:
+        print(f'Number of processes done: {n}')
+        time.sleep(0.2)
+    logger.debug(f"Other processes done, execution will continue", extra={'phase': "WAIT"})
+    time.sleep(0.4)
+    red.delete(barrier_id)
+
+
+def get_datadis_devices(config):
+    red = redis.Redis(**config['redis']['connection'])
     s = time.time()
     logger.debug("Starting devices retrieval", extra={'phase': 'GATHER'})
-    red.delete('datadis.barrier')
     while True:
-        item = red.rpop('datadis.users')
+        item = red.rpop(config['redis']['users'])
         if not item:
             break
         item_map = pickle.loads(item)
-        item_map['red'] = red
-        dg.get_devices(item_map['username'], item_map['password'], item_map['authorized_nif'], item_map['source'],
-                       item_map['tables'], item_map['row_keys'], red)
+        supplies = get_devices_from_user_datadis(item_map['username'], item_map['password'], item_map['authorized_nif'])
+        for i in range(0, len(supplies), 10):
+            supply_dict = {
+                'user': item_map['username'],
+                'password': item_map['password'],
+                'db_list': item_map['source'],
+                'supplies': supplies[i:i + 10],
+                'authorized_nif': item_map['authorized_nif'],
+                'tables': item_map['tables'],
+                'row_keys': item_map['row_keys']
+            }
+            logger.debug("Gathered devices", extra={"user": supply_dict['user'], 'supplies': supplies[i:i + 10],
+                                                    'phase': "GATHER"})
+            red.lpush(config['redis']['devices'], pickle.dumps(supply_dict))
     logger.debug(f"Devices retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
-    redis_barrier_sync(NUM_PROCESSES, red, 'datadis.barrier')
 
 
-def get_datadis_data(dg, config):
-    red = redis.Redis(**config['redis'])
+def get_datadis_data(config):
+    red = redis.Redis(**config['redis']['connection'])
     s = time.time()
     logger.debug("Starting data retrieval", extra={'phase': 'GATHER'})
     while True:
-        item = red.rpop('datadis.devices')
+        item = red.rpop(config['redis']['devices'])
         if not item:
             break
         item_map = pickle.loads(item)
 
-        dg.get_data(item_map['user'], item_map['password'], item_map['authorized_nif'],
-                    item_map['db_list'], item_map['supplies'], item_map['tables'], item_map['row_keys'])
+        get_data(item_map['user'], item_map['password'], item_map['authorized_nif'],
+                    item_map['db_list'], item_map['supplies'], item_map['tables'], item_map['row_keys'], config)
     logger.debug(f"Data retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
-    redis_barrier_sync(NUM_PROCESSES, red, 'datadis.barrier')
 
-
-def nifs_multisource(config):
-    redis_client = redis.Redis(**config['redis'])
-    lock_key = "my_lock"
-    minutes = 8
-
-    # Try acquiring the lock
-    if redis_client.set(lock_key, "lock", nx=True, ex=minutes*60):
-        logger.debug(f"Pod solving multi source issue, waiting {minutes} minutes for Kafka to finish",
-                     extra={'phase': 'GATHER'})
-        # Since all the data is being sent to Kafka, there's a chance that while the multi sources solver is being
-        # executed, data is still being harmonized, because of that, we have to put this process to sleep for a while
-        time.sleep(minutes*60)
-        plugins_list = plugins.get_plugins()
-        sime = next((cls for cls in plugins_list if cls.__name__ == "SIMEImport"), None)
-        plugins_list = [sime]
-        for p in plugins_list:
-            p.solve_multisources()
-        redis_client.delete(lock_key)  # Release the lock
-        logger.debug(f"Pod finished solving multi source issue", extra={'phase': 'GATHER'})
-
-    else:
-        logger.debug(f"Another pod already solving multi source issue", extra={'phase': 'GATHER'})
-
-
-def empty_users(red):
-    item = red.rpop('datadis.users')
-    while item:
-        item = red.rpop('datadis.users')
-
-
-def empty_devices(red):
-    item = red.rpop('datadis.devices')
-    while item:
-        item = red.rpop('datadis.devices')
-
-
-def wait_redis_queue(config):
-    redis_con = redis.Redis(**config['redis'])
-    timeout = time.time() + 60 * 10  # timeout 10 minutes
-    logger.debug(f"Waiting for starter to store data in queue", extra={'phase': "WAIT"})
-
-    while time.time() < timeout:
-        if redis_con.llen('datadis.users') > 0:
-            break
-        time.sleep(1)
-    logger.debug(f"Data already in queue, new process will start", extra={'phase': "WAIT"})
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--policy", "-p", choices=["last", "repair"], required=True)
-    ap.add_argument("--launcher", "-l", choices=["producer", "consumer", "wait"], required=True)
+    ap.add_argument("--launcher", "-l", choices=["producer", "consumer"], required=True)
+    ap.add_argument("--num_processors", "-n", required=True)
+    dotenv.load_dotenv()
+    config = beelib.beeconfig.read_config()
+
     if os.getenv("PYCHARM_HOSTED") is not None:
-        exit(0)
+        args = ap.parse_args(["-l", "producer", "-n", "1"])
     else:
         args = ap.parse_args()
-    launcher = args.launcher
-    policy = args.policy
-
-    config = beelib.beeconfig.read_config('config.json')
-    red = redis.Redis(**config['redis'])
-
-    if launcher == 'producer':
-        get_users(config)
-    elif launcher == 'consumer':
-        wait_redis_queue(config)
-
-        dg = DatadisGatherer(policy)
-
-        get_datadis_devices(dg, config)
-        get_datadis_data(dg, config)
-        nifs_multisource(config)
-        logger.info(f"WORKER FINISHED", extra={'phase': "END"})
+        if args.launcher == 'producer':
+            get_users(config)
+        elif args.launcher == 'consumer':
+            sync_processors(config, int(args.num_processors), config['redis']['dev_tickets'])
+            get_datadis_devices(config)
+            sync_processors(config, int(args.num_processors), config['redis']['data_tickets'])
+            get_datadis_data(config)
+            send_final_message(config)
+            logger.info(f"WORKER FINISHED", extra={'phase': "END"})

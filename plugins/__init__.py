@@ -1,10 +1,19 @@
 import importlib
 import os
+import beelib.beeconfig
 
 
 class DatadisInputPlugIn(object):
+    conf_file = None
     @classmethod
     def get_users(cls):
+        if cls.conf_file is None:
+            raise NotImplemented
+        config = beelib.beeconfig.read_config(cls.conf_file)
+        return cls.get_users_plugin(config)
+
+    @classmethod
+    def get_users_plugin(cls, config):
         raise NotImplemented
 
     @classmethod
