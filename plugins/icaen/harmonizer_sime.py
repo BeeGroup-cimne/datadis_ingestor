@@ -192,11 +192,10 @@ def harmonize_timeseries(data, freq, prop):
     beelib.beehbase.save_to_hbase(df_final.to_dict(orient="records"), table_name, config['hbase']['connection'],
                               [("v", ["value"]), ("info", ["end", "isReal"])],
                               ["bucket", "hash", "start"])
-    config_kafka = beelib.beeconfig.read_config('config.json')
-    producer = beelib.beekafka.create_kafka_producer(config_kafka['kafka'], encoding="JSON")
+    producer = beelib.beekafka.create_kafka_producer(config['kafka'], encoding="JSON")
     df_final['freq'] = freq
     df_final['property'] = prop
-    df_to_save = df_final.reset_index().apply(
+    df_to_save = df_final.apply(
         harmonize_for_influx, timestamp_key="start", end="end", value_key="value",
         hash_key="hash", is_real=True,
         axis=1)

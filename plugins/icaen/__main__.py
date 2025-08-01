@@ -59,7 +59,8 @@ async def process_table(records):
                         harmonize_supplies(messages)
         if final:
             logger.debug("Processing final event", extra={'phase': 'HARMONIZE_END'})
-            for k in supplies_table.keys():
+            keys = supplies_table.keys()
+            for k in keys:
                 logger.debug("Supply", extra={'phase': 'HARMONIZE', 'supply': k})
                 del supplies_table[k]
             end_process()

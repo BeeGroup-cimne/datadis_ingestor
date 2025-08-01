@@ -68,6 +68,7 @@ mappings:
     po:
       - [ a, bigg:LocationInfo ]
       - [ bigg:addressPostalCode, $(postalCode) ]
+      - [ bigg:addressStreetName, $(address) ]
       - [ bigg:hasAddressCity, geodata:$(municipality)/]
       - [ bigg:hasAddressProvince, geodata:$(province)/ ]
 
