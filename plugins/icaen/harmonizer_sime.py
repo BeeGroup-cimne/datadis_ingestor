@@ -197,7 +197,7 @@ def harmonize_timeseries(data, freq, prop):
     df_final['property'] = prop
     df_to_save = df_final.apply(
         harmonize_for_influx, timestamp_key="start", end="end", value_key="value",
-        hash_key="hash", is_real=True,
+        hash_key="hash", is_real="True",
         axis=1)
     send_to_kafka(producer, 'sime.influx', df_to_save)
 
