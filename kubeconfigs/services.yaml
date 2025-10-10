@@ -167,7 +167,7 @@ metadata:
   namespace: datadis
 spec:
   suspend: false
-  schedule: "0 22 * * 5"
+  schedule: "0 22 */2 * *"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
@@ -257,7 +257,7 @@ metadata:
   namespace: datadis
 spec:
   suspend: false
-  schedule: "10 22 * * 5"
+  schedule: "10 22 */2 * *"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
