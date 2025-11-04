@@ -3,13 +3,14 @@ import time
 import redis
 import pickle
 import beelib
+import dotenv
 import plugins
 import logging
 import argparse
 import pandas as pd
+from itertools import chain
 from pythonjsonlogger import jsonlogger
 from DatadisGatherer import get_devices_from_user_datadis, get_data, send_final_message
-import dotenv
 
 logger = logging.getLogger()
 logger.setLevel("DEBUG")
@@ -17,6 +18,34 @@ logHandler = logging.StreamHandler()
 formatter = jsonlogger.JsonFormatter('%(asctime)s - %(levelname)s - %(name)s: %(message)s')
 logHandler.setFormatter(formatter)
 logger.addHandler(logHandler)
+
+def merge_dicts(dicts):
+    """Merge or collect dicts safely even if they contain lists."""
+    new_dict = dict()
+    for d in dicts:
+        for k, v in d.items():
+            new_dict[k] = v
+    return new_dict
+
+
+def intersections(dic):
+    # Convertim cada llista a un conjunt per facilitar interseccions
+    sets = {k: set(v) for k, v in dic.items()}
+
+    # Obtenim tots els elements únics
+    tots = set(chain.from_iterable(sets.values()))
+
+    result = {}
+
+    for elem in tots:
+        # Troba en quines claus apareix
+        claus = [k for k, s in sets.items() if elem in s]
+        key = ",".join(sorted(claus))
+        result.setdefault(key, []).append(elem)
+
+    # Ordenem les claus segons nombre de grups (opcional)
+    result = dict(sorted(result.items(), key=lambda x: (-len(x[0]), x[0])))
+    return result
 
 
 def get_all_users():
@@ -36,12 +65,32 @@ def get_all_users():
     # users = users[users['authorized_nif'].isna]
     users['authorized_nif'] = users['authorized_nif'].apply(lambda x: x + [''] if x else x)
     users = users.explode('authorized_nif')
-    users["authorized_nif"] = users["authorized_nif"].fillna("")
-    users = pd.DataFrame(users.groupby(["username", "password", "authorized_nif", "tables", "row_keys"])['source'].apply(list)).reset_index()
 
+    users['dict_cups'] = users.apply(lambda row: {row['source']: row['cups']}, axis=1)
+
+    users = users.explode('cups')
+    users["authorized_nif"] = users["authorized_nif"].fillna("")
+
+    # Aggregate
+    users = (
+        users
+        .groupby(['username', 'password', 'authorized_nif', 'self'], dropna=False)
+        .agg({
+            'cups': list,
+            'source': lambda x: list(dict.fromkeys(x)),
+            'tables': list,
+            'row_keys': list,
+            'dict_cups': merge_dicts
+        })
+        .reset_index()
+    )
     # We reverse the previous tuples transformation
     users["tables"] = users["tables"].apply(list)
     users["row_keys"] = users["row_keys"].apply(list)
+
+    # Remove those users whose self-devices won't be necessary
+    users = users.drop(users[(users['self'] == False) & (users['authorized_nif'] == "")].index)
+    users = users.drop(columns=['self', 'cups'])
 
     return users
 
@@ -87,17 +136,42 @@ def get_datadis_devices(config):
             break
         item_map = pickle.loads(item)
         supplies = get_devices_from_user_datadis(item_map['username'], item_map['password'], item_map['authorized_nif'])
-        for i in range(0, len(supplies), 10):
+        all_db = [k for k, v in item_map['dict_cups'].items() if v is None]
+        filtered = {k: v for k, v in item_map['dict_cups'].items() if v is not None}
+        intersection = intersections(filtered)
+
+        for k, v in intersection.items():
+            subsupply = [s for s in supplies if s['cups'] in v]
+            db_list = all_db + k.split(',')
+
+            for i in range(0, len(subsupply), 10):
+                supply_dict = {
+                    'user': item_map['username'],
+                    'password': item_map['password'],
+                    'db_list': db_list,
+                    'supplies': subsupply[i:i + 10],
+                    'authorized_nif': item_map['authorized_nif'],
+                    'tables': item_map['tables'],
+                    'row_keys': item_map['row_keys']
+                }
+                logger.debug("Gathered devices", extra={"user": supply_dict['user'], 'supplies': subsupply[i:i + 10],
+                                                        'phase': "GATHER"})
+                red.lpush(config['redis']['devices'], pickle.dumps(supply_dict))
+        processed_cups = [set(x) for _, x in filtered.items()]
+        processed_cups = list(set.union(*processed_cups))
+
+        missing = [s for s in supplies if s['cups'] not in processed_cups]
+        for i in range(0, len(missing), 10):
             supply_dict = {
                 'user': item_map['username'],
                 'password': item_map['password'],
-                'db_list': item_map['source'],
-                'supplies': supplies[i:i + 10],
+                'db_list': all_db,
+                'supplies': missing[i:i + 10],
                 'authorized_nif': item_map['authorized_nif'],
                 'tables': item_map['tables'],
                 'row_keys': item_map['row_keys']
             }
-            logger.debug("Gathered devices", extra={"user": supply_dict['user'], 'supplies': supplies[i:i + 10],
+            logger.debug("Gathered devices", extra={"user": supply_dict['user'], 'supplies': missing[i:i + 10],
                                                     'phase': "GATHER"})
             red.lpush(config['redis']['devices'], pickle.dumps(supply_dict))
     logger.debug(f"Devices retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})

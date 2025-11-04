@@ -5,8 +5,8 @@ from beelib import beesecurity
 import os
 
 
-class SIMEImport(DatadisInputPlugIn):
-    conf_file="plugins/icaen/config.json";
+class COSMICImport(DatadisInputPlugIn):
+    conf_file="plugins/cosmic/config.json";
     @classmethod
     def get_users_plugin(cls, config):
         driver = GraphDatabase.driver(**config['neo4j'])
@@ -19,7 +19,7 @@ class SIMEImport(DatadisInputPlugIn):
 
     @classmethod
     def get_source(cls):
-        return "sime"
+        return "cosmic"
 
     @classmethod
     def get_row_keys(cls):
@@ -31,8 +31,8 @@ class SIMEImport(DatadisInputPlugIn):
 
     @classmethod
     def get_topic(cls):
-        return 'datadis.simehbase'
+        return 'datadis.cosmichbase'
 
 def get_plugin():
-    return SIMEImport
+    return COSMICImport
 
