@@ -136,10 +136,15 @@ def get_datadis_devices(config):
             break
         item_map = pickle.loads(item)
         supplies = get_devices_from_user_datadis(item_map['username'], item_map['password'], item_map['authorized_nif'])
+        if not supplies:
+            continue
         all_db = [k for k, v in item_map['dict_cups'].items() if v is None]
-        filtered = {k: v for k, v in item_map['dict_cups'].items() if v is not None}
+        filtered = {
+            k: v
+            for k, v in item_map['dict_cups'].items()
+            if v is not None and not (isinstance(v, float) and pd.isna(v))
+        }
         intersection = intersections(filtered)
-
         for k, v in intersection.items():
             subsupply = [s for s in supplies if s['cups'] in v]
             db_list = all_db + k.split(',')
@@ -157,8 +162,10 @@ def get_datadis_devices(config):
                 logger.debug("Gathered devices", extra={"user": supply_dict['user'], 'supplies': subsupply[i:i + 10],
                                                         'phase': "GATHER"})
                 red.lpush(config['redis']['devices'], pickle.dumps(supply_dict))
-        processed_cups = [set(x) for _, x in filtered.items()]
-        processed_cups = list(set.union(*processed_cups))
+        processed_cups = []
+        if filtered:
+            processed_cups = [set(x) for _, x in filtered.items()]
+            processed_cups = list(set.union(*processed_cups))
 
         missing = [s for s in supplies if s['cups'] not in processed_cups]
         for i in range(0, len(missing), 10):
