@@ -55,21 +55,13 @@ def get_all_users():
         logger.debug(f"Getting users from source", extra={'phase': "GATHER", 'source': p})
         tmp_df = p.get_users()
         tmp_df['source'] = p.get_source()
-        tmp_df['tables'] = [p.get_tables()] * len(tmp_df)
-        tmp_df['row_keys'] = [p.get_row_keys()] * len(tmp_df)
-
-        # Covert the previous list to tuples in order to GroupBy correctly
-        tmp_df["tables"] = tmp_df["tables"].apply(tuple)
-        tmp_df["row_keys"] = tmp_df["row_keys"].apply(tuple)
+        tmp_df['tables'] = [{p.get_source(): p.get_tables()}] * len(tmp_df)
+        tmp_df['row_keys'] = [{p.get_source():p.get_row_keys()}] * len(tmp_df)
+        tmp_df['dict_cups'] = tmp_df['cups'].apply(lambda x: {p.get_source(): x})
         users = pd.concat([users, tmp_df])
     # users = users[users['authorized_nif'].isna]
-    users['authorized_nif'] = users['authorized_nif'].apply(lambda x: x + [''] if x else x)
+    users['authorized_nif'] = users['authorized_nif'].apply(lambda x: x + [''] if x else [''])
     users = users.explode('authorized_nif')
-
-    users['dict_cups'] = users.apply(lambda row: {row['source']: row['cups']}, axis=1)
-
-    users = users.explode('cups')
-    users["authorized_nif"] = users["authorized_nif"].fillna("")
 
     # Aggregate
     users = (
@@ -78,20 +70,15 @@ def get_all_users():
         .agg({
             'cups': list,
             'source': lambda x: list(dict.fromkeys(x)),
-            'tables': list,
-            'row_keys': list,
+            'tables': merge_dicts,
+            'row_keys': merge_dicts,
             'dict_cups': merge_dicts
         })
         .reset_index()
     )
-    # We reverse the previous tuples transformation
-    users["tables"] = users["tables"].apply(list)
-    users["row_keys"] = users["row_keys"].apply(list)
-
     # Remove those users whose self-devices won't be necessary
     users = users.drop(users[(users['self'] == False) & (users['authorized_nif'] == "")].index)
     users = users.drop(columns=['self', 'cups'])
-
     return users
 
 

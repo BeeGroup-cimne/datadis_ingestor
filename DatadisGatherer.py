@@ -207,41 +207,36 @@ def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
 
 
 def save_datadis_data(topic, collection_type, key, data, row_keys, dblist, tables, config, **kwargs):
-    plug = [x for x in plugins.get_plugins() if x.get_source() == dblist[0]][0]
-
+    kwargs.update({'collection_type': collection_type})
+    producer = beelib.beekafka.create_kafka_producer(config['kafka'], encoding="JSON")
     if collection_type == 'timeseries':
         prop = kwargs['property'] if 'property' in kwargs else None
         freq = kwargs['freq'] if 'freq' in kwargs else None
-        tables = [s.format(freq=freq, prop=prop) for s in tables]
-        topic = plug.get_topic()
-        row_keys = [list(item) for item in row_keys]
-
-        # Get raw data prepared to upload to HBase using the proper plugin to set up the timeseries
-        data = pd.DataFrame(data)
-        data['freq'] = freq
-        data['prop'] = prop
-        data = plug.prepare_raw_data(data)
-        data = data.to_dict(orient='records')
-
+        for db in dblist:
+            plug = [x for x in plugins.get_plugins() if x.get_source() == db][0]
+            tables_ = [s.format(freq=freq, prop=prop) for s in tables[db]]
+            topic = plug.get_topic()
+            row_keys_ = [list(item) for item in row_keys[db]]
+            # Get raw data prepared to upload to HBase using the proper plugin to set up the timeseries
+            data = pd.DataFrame(data)
+            data['freq'] = freq
+            data['prop'] = prop
+            data = plug.prepare_raw_data(data)
+            data = data.to_dict(orient='records')
+            kwargs.update({"dblist": [db]})
+            logger.debug(f"Sending timeseries to Kafka", extra={"phase": "GATHER", "tables": tables_})
+            beelib.beekafka.send_to_kafka(producer, topic, key, data, tables=tables_, row_keys=row_keys_, kwargs=kwargs)
+            producer.flush()
     else:
-        tables = ['']
-
-    for entry in data:
-        if 'datetime' in entry and isinstance(entry['datetime'], pd.Timestamp):
-            entry['datetime'] = entry['datetime'].isoformat()
-
-    producer = beelib.beekafka.create_kafka_producer(config['kafka'], encoding="JSON")
-    for db in dblist:
-        kwargs.update({"dblist": [db]})
-        kwargs.update({'collection_type': collection_type})
-
-        # Format the row_keys correctly
-
-        logger.debug(f"Sending timeseries to Kafka", extra={"phase": "GATHER", "tables": tables})
-
+        tables_ = ['']
+        kwargs.update({"dblist": dblist})
+        for entry in data:
+            if 'datetime' in entry and isinstance(entry['datetime'], pd.Timestamp):
+                entry['datetime'] = entry['datetime'].isoformat()
+        logger.debug(f"Sending static data to Kafka", extra={"phase": "GATHER", "tables": tables_})
         beelib.beekafka.send_to_kafka(producer, topic, key, data,
-                                      tables=tables, row_keys=row_keys, kwargs=kwargs)
-    producer.flush()
+                                      tables=tables_, row_keys=row_keys, kwargs=kwargs)
+        producer.flush()
     producer.close()
 
 def parse_arguments(row, type_params, date_ini, date_end):
@@ -297,6 +292,7 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
     downloaded_elems = set()
     for data_type, type_params in data_types_dict.items():
         m_property, freq = data_type.split("_")
+        # TODO: AIXO ESTA MALAMENT
         if dblist == ['icat']:
             m_property = 'energy-active'
         if type_params['type_data'] == "timeseries":
