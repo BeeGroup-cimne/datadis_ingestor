@@ -304,7 +304,7 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
                 data = download_chunk(supply, type_params, status)
                 data_df = type_params['parser'](data)
                 if len(data_df) != status['values']:
-                    save_datadis_data(settings.TOPIC_TS, "timeseries", supply['cups'],
+                    save_datadis_data("", "timeseries", supply['cups'],
                                       data_df, row_keys, dblist, tables, config, property=m_property,
                                       freq=freq)
                     status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(
