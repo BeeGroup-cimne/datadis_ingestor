@@ -10,8 +10,9 @@ class COSMICImport(DatadisInputPlugIn):
     @classmethod
     def get_users_plugin(cls, config):
         driver = GraphDatabase.driver(**config['neo4j'])
-        query = ("Match(n:DatadisSource) return n.username as username, n.Password as password, n.authorized_nif as authorized_nif, "
-                 "n.self as self, n.cups as cups")
+        query = """Match(n:DatadisSource) 
+        return n.username as username, n.Password as password, n.authorized_nif as authorized_nif, 
+        n.self as self, n.cups as cups"""
         with driver.session() as session:
             users = pd.DataFrame(data=session.run(query).data())
             users['password'] = users.password.apply(beesecurity.decrypt, args=(config['secret_password'],))

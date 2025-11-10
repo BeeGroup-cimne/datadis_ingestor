@@ -292,9 +292,6 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
     downloaded_elems = set()
     for data_type, type_params in data_types_dict.items():
         m_property, freq = data_type.split("_")
-        # TODO: AIXO ESTA MALAMENT
-        if dblist == ['icat']:
-            m_property = 'energy-active'
         if type_params['type_data'] == "timeseries":
             # get all incomplete chunks
             status_list = [x for x in device[type_params["mongo_collection"]].values()
@@ -303,18 +300,18 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
             for status in status_list:
                 data = download_chunk(supply, type_params, status)
                 data_df = type_params['parser'](data)
-                if len(data_df) != status['values']:
-                    save_datadis_data("", "timeseries", supply['cups'],
-                                      data_df, row_keys, dblist, tables, config, property=m_property,
-                                      freq=freq)
-                    status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(
-                        pytz.UTC)
-                    status['date_max'] = pd.to_datetime(data_df[-1]['timestamp'], unit="s"). \
-                        tz_localize(pytz.UTC)
-                    status['values'] = len(data_df)
-                    downloaded_elems.add((m_property, freq))
-                else:
+                if len(data_df) == status['values']:
                     status['retries'] -= 1
+                save_datadis_data("", "timeseries", supply['cups'],
+                                  data_df, row_keys, dblist, tables, config, property=m_property,
+                                  freq=freq)
+                status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(
+                    pytz.UTC)
+                status['date_max'] = pd.to_datetime(data_df[-1]['timestamp'], unit="s"). \
+                    tz_localize(pytz.UTC)
+                status['values'] = len(data_df)
+                downloaded_elems.add((m_property, freq))
+
     # store status info
     datadis_devices.replace_one({"_id": device['_id']}, device, upsert=True)
     return list(downloaded_elems)
