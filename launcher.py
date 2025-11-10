@@ -52,6 +52,8 @@ def get_all_users():
     plugins_list = plugins.get_plugins()
     users = pd.DataFrame()
     for p in plugins_list:
+        if not p:
+            continue
         logger.debug(f"Getting users from source", extra={'phase': "GATHER", 'source': p})
         tmp_df = p.get_users()
         tmp_df['source'] = p.get_source()

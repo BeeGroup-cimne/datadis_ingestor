@@ -34,5 +34,6 @@ class SIMEImport(DatadisInputPlugIn):
         return 'datadis.simehbase'
 
 def get_plugin():
-    return SIMEImport
+    return None
+    #return SIMEImport
 
