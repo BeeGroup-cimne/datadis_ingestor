@@ -1,12 +1,12 @@
 import contextlib
 import faust
-from plugins.cosmic.harmonizer_cosmic import harmonize_supplies, harmonize_timeseries, end_process
+from plugins.sime.harmonizer_sime import harmonize_supplies, harmonize_timeseries, end_process
 import settings
 import beelib
 import os
 import logging
 from pythonjsonlogger import jsonlogger
-from plugins.cosmic import COSMICImport
+from plugins.sime import SIMEImport
 
 
 logger = logging.getLogger()
@@ -21,10 +21,10 @@ app = faust.App('datadis.harm', topic_disable_leader=True, broker=f"kafka://{con
 
 static = app.topic(settings.TOPIC_STATIC, internal=True, partitions=settings.TOPIC_STATIC_PARTITIONS,
                    value_serializer='json')
-ts = app.topic(COSMICImport.get_topic(), internal=True, partitions=settings.TOPIC_TS_PARTITIONS,
+ts = app.topic(SIMEImport.topic, internal=True, partitions=settings.TOPIC_TS_PARTITIONS,
                value_serializer='json')
-supplies_table = app.Table('datadis.supplies_table_cache', partitions=settings.TOPIC_STATIC_PARTITIONS)
-harmonize_supply = app.topic('datadis.harmonize_supplies',  internal=True, partitions=settings.TOPIC_STATIC_PARTITIONS,
+supplies_table = app.Table('datadis.sime.supplies_table_cache', partitions=settings.TOPIC_STATIC_PARTITIONS)
+harmonize_supply = app.topic('datadis.sime.harmonize_supplies',  internal=True, partitions=settings.TOPIC_STATIC_PARTITIONS,
                              value_serializer='json')
 
 
@@ -33,15 +33,15 @@ async def join_supplies(records):
     async for record in records:
         if record['kwargs']['collection_type'] == "FINAL_MESSAGE":
             logger.debug("FINAL_MESSAGE received", extra={'phase': 'HARMONIZE'})
-            # await process_table.cast(value=record)
+            await process_table.cast(value=record)
             continue
-        if "cosmic" not in record['kwargs']['dblist']:
+        if "sime" not in record['kwargs']['dblist']:
             continue
         try:
             tmp = supplies_table.pop(record['data']['cups'])
             tmp.update(record['data'])
             record['data'] = tmp
-            # await process_table.cast(value=record)
+            await process_table.cast(value=record)
         except:
             supplies_table[record['data']['cups']] = record['data']
 
@@ -69,7 +69,7 @@ async def process_table(records):
 @app.agent(ts)
 async def process_ts(records):
     async for record in records:
-        if "cosmic" not in record['kwargs']['dblist']:
+        if "sime" not in record['kwargs']['dblist']:
             continue
         if record['kwargs']['property'] not in ["EnergyConsumptionGridElectricity"]:
             continue

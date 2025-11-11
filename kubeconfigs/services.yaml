@@ -1,165 +1,3 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name:	harmonizer-datadis-icaen
-  namespace: datadis
-spec:
-  replicas: 10
-  selector:
-    matchLabels:
-      app: harmonizer-datadis-icaen
-  strategy:
-    type: Recreate
-  template:
-    metadata:
-        labels:
-            app: harmonizer-datadis-icaen
-            logger: datadis-logger-icaen
-    spec:
-      hostAliases:
-        - ip: "10.0.88.76"
-          hostnames:
-            - "master1.internal"
-        - ip: "10.0.87.95"
-          hostnames:
-            - "master2.internal"
-        - ip: "10.0.88.132"
-          hostnames:
-            - "worker1.internal"
-        - ip: "10.0.86.33"
-          hostnames:
-            - "worker2.internal"
-        - ip: "10.0.87.145"
-          hostnames:
-            - "worker3.internal"
-        - ip: "10.0.86.214"
-          hostnames:
-            - "worker4.internal"
-        - ip: "10.0.129.220"
-          hostnames:
-            - "kafka1.internal"
-        - ip: "10.0.88.175"
-          hostnames:
-            - "database1-vpn"
-        - ip: "10.0.88.151"
-          hostnames:
-            - "database2-vpn"
-        - ip: "10.0.87.50"
-          hostnames:
-            - "database3-vpn"
-      containers:
-        - name: harmonizer-datadis-icaen
-          image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
-          command: [ "python3", "-m", "plugins.icaen", "worker", "-l", "info"]
-          #command: ["/bin/sh", "-ec", "sleep 1000"]
-          env:
-            - name: CONF_FILE
-              value: "config.json"
-          volumeMounts:
-          - name: datadis-harmonize-secret
-            mountPath: /datadis/config.json
-            subPath: config.json
-          - name: datadis-icaen-secret
-            mountPath: /datadis/plugins/icaen/config.json
-            subPath: config_icaen.json
-      imagePullSecrets:
-        - name: odin1pullsecret
-
-      volumes:
-        - name: datadis-harmonize-secret
-          secret:
-            secretName: datadis-harmonize-secret
-            items:
-            - key: config.json
-              path: config.json
-        - name: datadis-icaen-secret
-          secret:
-            secretName: datadis-icaen-secret
-            items:
-              - key: config_icaen.json
-                path: config_icaen.json
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name:	harmonizer-datadis-icat
-  namespace: datadis
-spec:
-  replicas: 10
-  selector:
-    matchLabels:
-      app: harmonizer-datadis-icat
-  strategy:
-    type: Recreate
-  template:
-    metadata:
-        labels:
-            app: harmonizer-datadis-icat
-            logger: datadis-logger-icat
-    spec:
-      hostAliases:
-        - ip: "10.0.88.76"
-          hostnames:
-            - "master1.internal"
-        - ip: "10.0.87.95"
-          hostnames:
-            - "master2.internal"
-        - ip: "10.0.88.132"
-          hostnames:
-            - "worker1.internal"
-        - ip: "10.0.86.33"
-          hostnames:
-            - "worker2.internal"
-        - ip: "10.0.87.145"
-          hostnames:
-            - "worker3.internal"
-        - ip: "10.0.86.214"
-          hostnames:
-            - "worker4.internal"
-        - ip: "10.0.129.220"
-          hostnames:
-            - "kafka1.internal"
-        - ip: "10.0.88.175"
-          hostnames:
-            - "database1-vpn"
-        - ip: "10.0.88.151"
-          hostnames:
-            - "database2-vpn"
-        - ip: "10.0.87.50"
-          hostnames:
-            - "database3-vpn"
-      containers:
-        - name: harmonizer-datadis-icat
-          image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
-          command: [ "python3", "-m", "plugins.infraestructures", "worker", "-l", "info"]
-          #command: ["/bin/sh", "-ec", "sleep 1000"]
-          env:
-            - name: CONF_FILE
-              value: "config.json"
-          volumeMounts:
-          - name: datadis-harmonize-secret
-            mountPath: /datadis/config.json
-            subPath: config.json
-          - name: datadis-icat-secret
-            mountPath: /datadis/plugins/infraestructures/config.json
-            subPath: config_infra.json
-      imagePullSecrets:
-        - name: odin1pullsecret
-
-      volumes:
-        - name: datadis-harmonize-secret
-          secret:
-            secretName: datadis-harmonize-secret
-            items:
-            - key: config.json
-              path: config.json
-        - name: datadis-icat-secret
-          secret:
-            secretName: datadis-icat-secret
-            items:
-              - key: config_infra.json
-                path: config_infra.json
----
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -218,34 +56,21 @@ spec:
               - name: CONF_FILE
                 value: "config.json"
             volumeMounts:
-            - name: datadis-harmonize-secret
+            - name: datadis-base-secret
               mountPath: /datadis/config.json
               subPath: config.json
-            - name: datadis-icaen-secret
-              mountPath: /datadis/plugins/icaen/config.json
-              subPath: config_icaen.json
-            - name: datadis-icat-secret
-              mountPath: /datadis/plugins/infraestructures/config.json
-              subPath: config_infra.json
+            - name: datadis-plugins-secret
+              mountPath: /datadis/plugins/secrets/
           volumes:
-          - name: datadis-harmonize-secret
+          - name: datadis-base-secret
             secret:
-              secretName: datadis-harmonize-secret
+              secretName: datadis-base-secret
               items:
               - key: config.json
                 path: config.json
-          - name: datadis-icaen-secret
+          - name: datadis-plugins-secret
             secret:
-              secretName: datadis-icaen-secret
-              items:
-                - key: config_icaen.json
-                  path: config_icaen.json
-          - name: datadis-icat-secret
-            secret:
-              secretName: datadis-icat-secret
-              items:
-                - key: config_infra.json
-                  path: config_infra.json
+              secretName: datadis-plugins-secret
           restartPolicy: Never
           imagePullSecrets:
           - name: odin1pullsecret
@@ -310,36 +135,24 @@ spec:
               - name: CONF_FILE
                 value: "config.json"
             volumeMounts:
-            - name: datadis-harmonize-secret
+            - name: datadis-base-secret
               mountPath: /datadis/config.json
               subPath: config.json
-            - name: datadis-icaen-secret
-              mountPath: /datadis/plugins/icaen/config.json
-              subPath: config_icaen.json
-            - name: datadis-icat-secret
-              mountPath: /datadis/plugins/infraestructures/config.json
-              subPath: config_infra.json
+            - name: datadis-plugins-secret
+              mountPath: /datadis/plugins/secrets/
           volumes:
-          - name: datadis-harmonize-secret
+          - name: datadis-base-secret
             secret:
-              secretName: datadis-harmonize-secret
+              secretName: datadis-base-secret
               items:
               - key: config.json
                 path: config.json
-          - name: datadis-icaen-secret
+          - name: datadis-plugins-secret
             secret:
-              secretName: datadis-icaen-secret
-              items:
-                - key: config_icaen.json
-                  path: config_icaen.json
-          - name: datadis-icat-secret
-            secret:
-              secretName: datadis-icat-secret
-              items:
-                - key: config_infra.json
-                  path: config_infra.json
+              secretName: datadis-plugins-secret
           restartPolicy: Never
           imagePullSecrets:
           - name: odin1pullsecret
 
- #kubectl create secret generic datadis-harmonize-secret --from-file=config.json=config.json --from-file=.env=env -n datadis
+ #kubectl create secret generic datadis-base-secret --from-file=config.json=config.json -n datadis
+ #kubectl create secret generic datadis-plugins-secret --from-file=config_plugin_x.json=config_plugin_x.json --from-file=config_plugin_y.json=config_plugin_y.json -n datadis

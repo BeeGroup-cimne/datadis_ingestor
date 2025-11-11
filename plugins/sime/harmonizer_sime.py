@@ -14,7 +14,7 @@ import settings
 import neo4j
 import beelib
 import numpy as np
-from plugins.icaen import SIMEImport
+from plugins.sime import SIMEImport
 
 time_to_timedelta = {
     "PT1H": timedelta(hours=1),
@@ -192,14 +192,14 @@ def harmonize_timeseries(data, freq, prop):
     beelib.beehbase.save_to_hbase(df_final.to_dict(orient="records"), table_name, config['hbase']['connection'],
                               [("v", ["value"]), ("info", ["end", "isReal"])],
                               ["bucket", "hash", "start"])
-    producer = beelib.beekafka.create_kafka_producer(config['kafka'], encoding="JSON")
+    producer = beelib.beekafka.create_kafka_producer(config['kafka']['connection'], encoding="JSON")
     df_final['freq'] = freq
     df_final['property'] = prop
     df_to_save = df_final.apply(
         harmonize_for_influx, timestamp_key="start", end="end", value_key="value",
         hash_key="hash", is_real="True",
         axis=1)
-    send_to_kafka(producer, 'sime.influx', df_to_save)
+    send_to_kafka(producer, config['kafka']['topic'] , df_to_save)
 
 
 def end_process():

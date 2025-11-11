@@ -13,7 +13,7 @@ from pythonjsonlogger import jsonlogger
 from DatadisGatherer import get_devices_from_user_datadis, get_data, send_final_message
 
 logger = logging.getLogger()
-logger.setLevel("DEBUG")
+logger.setLevel("INFO")
 logHandler = logging.StreamHandler()
 formatter = jsonlogger.JsonFormatter('%(asctime)s - %(levelname)s - %(name)s: %(message)s')
 logHandler.setFormatter(formatter)
@@ -54,12 +54,13 @@ def get_all_users():
     for p in plugins_list:
         if not p:
             continue
+        p = p()
         logger.debug(f"Getting users from source", extra={'phase': "GATHER", 'source': p})
         tmp_df = p.get_users()
-        tmp_df['source'] = p.get_source()
-        tmp_df['tables'] = [{p.get_source(): p.get_tables()}] * len(tmp_df)
-        tmp_df['row_keys'] = [{p.get_source():p.get_row_keys()}] * len(tmp_df)
-        tmp_df['dict_cups'] = tmp_df['cups'].apply(lambda x: {p.get_source(): x})
+        tmp_df['source'] = p.source
+        tmp_df['tables'] = [{p.source: p.tables}] * len(tmp_df)
+        tmp_df['row_keys'] = [{p.source:p.row_keys}] * len(tmp_df)
+        tmp_df['dict_cups'] = tmp_df['cups'].apply(lambda x: {p.source: x})
         users = pd.concat([users, tmp_df])
     # users = users[users['authorized_nif'].isna]
     users['authorized_nif'] = users['authorized_nif'].apply(lambda x: x + [''] if x else [''])

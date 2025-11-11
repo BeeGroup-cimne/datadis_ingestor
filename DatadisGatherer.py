@@ -213,9 +213,9 @@ def save_datadis_data(topic, collection_type, key, data, row_keys, dblist, table
         prop = kwargs['property'] if 'property' in kwargs else None
         freq = kwargs['freq'] if 'freq' in kwargs else None
         for db in dblist:
-            plug = [x for x in plugins.get_plugins() if x.get_source() == db][0]
+            plug = [x for x in plugins.get_plugins() if x and x.source == db][0]
             tables_ = [s.format(freq=freq, prop=prop) for s in tables[db]]
-            topic = plug.get_topic()
+            topic = plug.topic
             row_keys_ = [list(item) for item in row_keys[db]]
             # Get raw data prepared to upload to HBase using the proper plugin to set up the timeseries
             data = pd.DataFrame(data)
@@ -223,6 +223,9 @@ def save_datadis_data(topic, collection_type, key, data, row_keys, dblist, table
             data['prop'] = prop
             data = plug.prepare_raw_data(data)
             data = data.to_dict(orient='records')
+            for entry in data:
+                if 'datetime' in entry and isinstance(entry['datetime'], pd.Timestamp):
+                    entry['datetime'] = entry['datetime'].isoformat()
             kwargs.update({"dblist": [db]})
             logger.debug(f"Sending timeseries to Kafka", extra={"phase": "GATHER", "tables": tables_})
             beelib.beekafka.send_to_kafka(producer, topic, key, data, tables=tables_, row_keys=row_keys_, kwargs=kwargs)
@@ -230,9 +233,6 @@ def save_datadis_data(topic, collection_type, key, data, row_keys, dblist, table
     else:
         tables_ = ['']
         kwargs.update({"dblist": dblist})
-        for entry in data:
-            if 'datetime' in entry and isinstance(entry['datetime'], pd.Timestamp):
-                entry['datetime'] = entry['datetime'].isoformat()
         logger.debug(f"Sending static data to Kafka", extra={"phase": "GATHER", "tables": tables_})
         beelib.beekafka.send_to_kafka(producer, topic, key, data,
                                       tables=tables_, row_keys=row_keys, kwargs=kwargs)

@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name:	harmonizer-datadis-icaen
+  namespace: datadis
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: harmonizer-datadis-icaen
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+        labels:
+            app: harmonizer-datadis-icaen
+            logger: datadis-logger-icaen
+    spec:
+      hostAliases:
+        - ip: "10.0.88.76"
+          hostnames:
+            - "master1.internal"
+        - ip: "10.0.87.95"
+          hostnames:
+            - "master2.internal"
+        - ip: "10.0.88.132"
+          hostnames:
+            - "worker1.internal"
+        - ip: "10.0.86.33"
+          hostnames:
+            - "worker2.internal"
+        - ip: "10.0.87.145"
+          hostnames:
+            - "worker3.internal"
+        - ip: "10.0.86.214"
+          hostnames:
+            - "worker4.internal"
+        - ip: "10.0.129.220"
+          hostnames:
+            - "kafka1.internal"
+        - ip: "10.0.88.175"
+          hostnames:
+            - "database1-vpn"
+        - ip: "10.0.88.151"
+          hostnames:
+            - "database2-vpn"
+        - ip: "10.0.87.50"
+          hostnames:
+            - "database3-vpn"
+      containers:
+      - name: harmonizer-datadis-icaen
+        image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
+        command: [ "python3", "-m", "plugins.sime", "worker", "-l", "info"]
+        #command: ["/bin/sh", "-ec", "sleep 1000"]
+        env:
+          - name: CONF_FILE
+            value: "config.json"
+        volumeMounts:
+        - name: datadis-base-secret
+          mountPath: /datadis/config.json
+          subPath: config.json
+        - name: datadis-plugins-secret
+          mountPath: /datadis/plugins/secrets/
+      volumes:
+      - name: datadis-base-secret
+        secret:
+          secretName: datadis-base-secret
+          items:
+          - key: config.json
+            path: config.json
+      - name: datadis-plugins-secret
+        secret:
+          secretName: datadis-plugins-secret
+      imagePullSecrets:
+        - name: odin1pullsecret

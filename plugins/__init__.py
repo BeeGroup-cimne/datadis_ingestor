@@ -4,42 +4,25 @@ import beelib.beeconfig
 
 
 class DatadisInputPlugIn(object):
-    conf_file = None
-    @classmethod
-    def get_users(cls):
-        if cls.conf_file is None:
-            raise NotImplemented
-        config = beelib.beeconfig.read_config(cls.conf_file)
-        return cls.get_users_plugin(config)
+    source = None
+    row_keys = None
+    tables = None
+    topic = None
+    config_file = None
+    def __init__(self):
+        self.config = beelib.beeconfig.read_config(self.config_file)
 
-    @classmethod
-    def get_users_plugin(cls, config):
+    def get_users(self):
         raise NotImplemented
 
-    @classmethod
-    def get_source(cls):
-        raise NotImplemented
-
-    @classmethod
-    def get_row_keys(cls):
-        raise NotImplemented
-
-    @classmethod
-    def get_tables(cls):
-        raise NotImplemented
-
-    @classmethod
-    def get_topic(cls):
-        raise NotImplemented
-
-    @classmethod
-    def prepare_raw_data(cls, df):
+    @staticmethod
+    def prepare_raw_data(df):
         return df
 
 
 def get_plugins():
     plugins_path = [x for x in os.listdir("plugins") if
-                    os.path.isdir(f"plugins/{x}") and not any([x.startswith(c) for c in [".", "_", "infra"]])]
+                    os.path.isdir(f"plugins/{x}") and "__init__.py" in os.listdir(f"plugins/{x}")]
     plugins = []
     for m in plugins_path:
         module = importlib.import_module(f"plugins.{m}")
