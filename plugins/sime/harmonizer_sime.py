@@ -57,7 +57,7 @@ def harmonize_for_influx(data, timestamp_key, end, value_key, hash_key, is_real)
 
 def harmonize_supplies(data):
     df = pd.DataFrame(data)
-    config = beelib.beeconfig.read_config(SIMEImport.conf_file)
+    config = beelib.beeconfig.read_config(SIMEImport.config_file)
 
     # If the CUPS is old, keep its relationship with its current ENS
     driver = neo4j.GraphDatabase().driver(**config['neo4j'])
@@ -150,6 +150,8 @@ def harmonize_timeseries(data, freq, prop):
     :return:
     """
     df = pd.DataFrame(data)
+    if df.empty:
+        return
     df["start"] = df['timestamp']
     df["bucket"] = (df['start'] // settings.TS_BUCKETS) % settings.BUCKETS
     df['end'] = df.start + time_to_timedelta[freq].seconds
@@ -157,7 +159,7 @@ def harmonize_timeseries(data, freq, prop):
     df['isReal'] = df['obtainMethod'].apply(lambda x: True if x == "Real" else False)
     rdf = rdflib.Graph()
     df_final = pd.DataFrame()
-    config = beelib.beeconfig.read_config(SIMEImport.conf_file)
+    config = beelib.beeconfig.read_config(SIMEImport.config_file)
     driver = neo4j.GraphDatabase().driver(**config['neo4j'])
     for device_id, data_group in df.groupby("cups"):
         data_group.set_index("datetime", inplace=True)
@@ -203,7 +205,7 @@ def harmonize_timeseries(data, freq, prop):
 
 
 def end_process():
-    config = beelib.beeconfig.read_config(SIMEImport.conf_file)
+    config = beelib.beeconfig.read_config(SIMEImport.config_file)
     driver = neo4j.GraphDatabase.driver(**config['neo4j'])
     with driver.session() as session:
         session.run("""Match(n:bigg__UtilityPointOfDelivery) 
