@@ -7,3 +7,7 @@ config*.json
 .sshignore
 ssh_push.sh
 __pycache__
+bin/
+lib/
+*
+_/*

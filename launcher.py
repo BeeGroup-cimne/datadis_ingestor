@@ -52,16 +52,19 @@ def get_all_users():
     plugins_list = plugins.get_plugins()
     users = pd.DataFrame()
     for p in plugins_list:
-        if not p:
-            continue
-        p = p()
-        logger.debug(f"Getting users from source", extra={'phase': "GATHER", 'source': p})
-        tmp_df = p.get_users()
-        tmp_df['source'] = p.source
-        tmp_df['tables'] = [{p.source: p.tables}] * len(tmp_df)
-        tmp_df['row_keys'] = [{p.source:p.row_keys}] * len(tmp_df)
-        tmp_df['dict_cups'] = tmp_df['cups'].apply(lambda x: {p.source: x})
-        users = pd.concat([users, tmp_df])
+        try:
+            if not p:
+                continue
+            p = p()
+            logger.debug(f"Getting users from source", extra={'phase': "GATHER", 'source': p})
+            tmp_df = p.get_users()
+            tmp_df['source'] = p.source
+            tmp_df['tables'] = [{p.source: p.tables}] * len(tmp_df)
+            tmp_df['row_keys'] = [{p.source:p.row_keys}] * len(tmp_df)
+            tmp_df['dict_cups'] = tmp_df['cups'].apply(lambda x: {p.source: x})
+            users = pd.concat([users, tmp_df])
+        except Exception as e:
+            logger.error(e)
     # users = users[users['authorized_nif'].isna]
     users['authorized_nif'] = users['authorized_nif'].apply(lambda x: x + [''] if x else [''])
     users = users.explode('authorized_nif')

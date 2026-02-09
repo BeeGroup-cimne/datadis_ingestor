@@ -172,7 +172,6 @@ def get_mongo_info(supply, datadis_devices):
     return device
 
 
-
 def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
     try:
         datadis.Datadis.connection(username=user, password=password, timeout=1000)
@@ -317,6 +316,3 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
     # store status info
     datadis_devices.replace_one({"_id": device['_id']}, device, upsert=True)
     return list(downloaded_elems)
-
-
-

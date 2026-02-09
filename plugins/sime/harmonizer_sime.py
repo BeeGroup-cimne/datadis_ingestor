@@ -24,7 +24,8 @@ time_to_timedelta = {
 
 def fuzzy_locations(adm):
     g = rdflib.Graph()
-    g.parse("plugins/icaen/all-geonames-rdf-clean-ES.rdf", format="xml")
+    g = rdflib.Graph()
+    g.parse("plugins/sime/all-geonames-rdf-clean-ES.rdf", format="xml")
     res = g.query(f"""SELECT ?name ?b WHERE {{
             ?b gn:name ?name.
             ?b gn:featureCode <https://www.geonames.org/ontology#{adm}> .
@@ -98,7 +99,7 @@ def harmonize_supplies(data):
     )
     df['lastMarketerDate'] = pd.to_datetime(df['lastMarketerDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     map_and_save({"supplies": df.to_dict(orient="records")},
-                 "plugins/icaen/mapping.yaml", config)
+                 "plugins/sime/mapping.yaml", config)
     with driver.session() as session:
 
         session.run("""MATCH (n:bigg__Device) 
