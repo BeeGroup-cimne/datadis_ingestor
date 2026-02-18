@@ -277,6 +277,7 @@ def download_chunk(supply, type_params, status):
                             "date_end": status['date_end_block']})
         return list()
 
+
 def send_final_message(config):
     producer = beelib.beekafka.create_kafka_producer(config['kafka'], encoding="JSON")
     metadata = producer.partitions_for(settings.TOPIC_STATIC)

@@ -24,7 +24,6 @@ time_to_timedelta = {
 
 def fuzzy_locations(adm):
     g = rdflib.Graph()
-    g = rdflib.Graph()
     g.parse("plugins/sime/all-geonames-rdf-clean-ES.rdf", format="xml")
     res = g.query(f"""SELECT ?name ?b WHERE {{
             ?b gn:name ?name.
@@ -89,8 +88,8 @@ def harmonize_supplies(data):
     df['municipality'] = df['municipality'].map(fuzzy_map_mun)
     df['province'] = df['province'].map(fuzzy_map_prov)
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
-    df['startDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[-1]['startDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
-    df['endDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[-1]['endDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    df['startDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[0]['startDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    df['endDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[0]['endDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     df['endDate'] = df['endDate'].astype('object')
     df['stateCancelled'] = np.where(df['endDate'] > df['startDate'], 'Accepted', None)
     df['nif_ab'] = df['endDate'].apply(lambda x: 'Alta' if pd.isna(x) else x)
@@ -202,7 +201,7 @@ def harmonize_timeseries(data, freq, prop):
         harmonize_for_influx, timestamp_key="start", end="end", value_key="value",
         hash_key="hash", is_real="True",
         axis=1)
-    send_to_kafka(producer, config['kafka']['topic'] , df_to_save)
+    send_to_kafka(producer, config['kafka']['topic'], df_to_save)
 
 
 def end_process():
