@@ -55,6 +55,12 @@ def harmonize_for_influx(data, timestamp_key, end, value_key, hash_key, is_real)
     return to_save
 
 
+def sort_owners(owner_list):
+    if isinstance(owner_list, list) and len(owner_list) > 0:
+        return sorted(owner_list, key=lambda d: d.get('startDate', ''), reverse=True)
+    return owner_list
+
+
 def harmonize_supplies(data):
     df = pd.DataFrame(data)
     config = beelib.beeconfig.read_config(SIMEImport.config_file)
@@ -88,6 +94,7 @@ def harmonize_supplies(data):
     df['municipality'] = df['municipality'].map(fuzzy_map_mun)
     df['province'] = df['province'].map(fuzzy_map_prov)
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
+    df['dateOwner'] = df['dateOwner'].apply(sort_owners)
     df['startDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[0]['startDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     df['endDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[0]['endDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
     df['endDate'] = df['endDate'].astype('object')
