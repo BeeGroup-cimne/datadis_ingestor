@@ -192,7 +192,6 @@ def get_datadis_data(config):
     logger.debug(f"Data retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
 
 
-
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--launcher", "-l", choices=["producer", "consumer"], required=True)

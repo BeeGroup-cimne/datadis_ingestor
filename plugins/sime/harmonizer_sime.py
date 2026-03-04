@@ -95,15 +95,40 @@ def harmonize_supplies(data):
     df['province'] = df['province'].map(fuzzy_map_prov)
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
     df['dateOwner'] = df['dateOwner'].apply(sort_owners)
-    df['startDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[0]['startDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
-    df['endDate'] = pd.to_datetime(df['dateOwner'].apply(lambda x: x[0]['endDate']), format='%Y-%m-%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    dt_start = pd.to_datetime(
+        df['dateOwner'].apply(lambda x: x[0].get('startDate') if isinstance(x, list) and len(x) > 0 else np.nan),
+        format='%Y-%m-%d',
+        errors='coerce'
+    )
+
+    dt_end = pd.to_datetime(
+        df['dateOwner'].apply(lambda x: x[0].get('endDate') if isinstance(x, list) and len(x) > 0 else np.nan),
+        format='%Y-%m-%d',
+        errors='coerce'
+    )
+    df['stateCancelled'] = np.where(dt_end > dt_start, 'Accepted', None)
+    df['stateEnrolled'] = df['stateCancelled'].isna()
+
+    df['startDate'] = dt_start.apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    df['endDate'] = dt_end.apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+
     df['endDate'] = df['endDate'].astype('object')
-    df['stateCancelled'] = np.where(df['endDate'] > df['startDate'], 'Accepted', None)
     df['nif_ab'] = df['endDate'].apply(lambda x: 'Alta' if pd.isna(x) else x)
     df['contractedPowerkW'] = df['contractedPowerkW'].apply(
         lambda x: '-'.join(str(item) for item in x) if isinstance(x, list) else x
     )
     df['lastMarketerDate'] = pd.to_datetime(df['lastMarketerDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+
+    with driver.session() as session:
+        data = session.run("""
+            MATCH (n:bigg__Device) 
+            WHERE n.source = 'DatadisSource'
+            RETURN {cups:n.bigg__deviceName, enrolled:n.bigg__enrolled} AS data
+        """).data()
+        data = pd.DataFrame.from_records([x['data'] for x in data])
+    df = pd.merge(df, data)
+    df['enrolled'] = df['enrolled'].fillna(False).astype(bool) | df['stateEnrolled'].fillna(False).astype(bool)
+
     map_and_save({"supplies": df.to_dict(orient="records")},
                  "plugins/sime/mapping.yaml", config)
     with driver.session() as session:
@@ -214,6 +239,21 @@ def harmonize_timeseries(data, freq, prop):
 def end_process():
     config = beelib.beeconfig.read_config(SIMEImport.config_file)
     driver = neo4j.GraphDatabase.driver(**config['neo4j'])
+
+    with driver.session() as session:
+        session.run("""
+                MATCH (n:bigg__Device) 
+                WHERE n.source = 'DatadisSource' AND n.bigg__enrolled = True
+                REMOVE n.bigg__stateCancelled
+                REMOVE n.bigg__enrolled
+        """)
+        session.run("""
+                MATCH (n:bigg__Device)
+                WHERE n.source = 'DatadisSource' AND n.bigg__enrolled = False
+                SET n.bigg__stateCancelled = 'Accepted'
+                REMOVE n.bigg__enrolled
+        """)
+
     with driver.session() as session:
         session.run("""Match(n:bigg__UtilityPointOfDelivery) 
         WHERE n.bigg__newSupply is NULL 

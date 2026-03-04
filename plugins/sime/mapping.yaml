@@ -45,6 +45,7 @@ mappings:
       - [ bigg:nif,  $(nif)]
       - [ bigg:authorized_nif,  $(authorized_nif)]
       - [ bigg:nif_$(nif), $(nif_ab)]
+      - [ bigg:enrolled, $(enrolled), xsd:boolean]
 
   upods:
     sources:
