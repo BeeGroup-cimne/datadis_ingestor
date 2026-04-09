@@ -5,6 +5,7 @@ from beelib import beesecurity
 import os
 import beelib
 
+
 class SIMEImport(DatadisInputPlugIn):
     config_file = "plugins/secrets/config_sime.json"
     source = "sime"
@@ -36,4 +37,3 @@ class SIMEImport(DatadisInputPlugIn):
 
 def get_plugin():
     return SIMEImport
-
