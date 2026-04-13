@@ -182,7 +182,7 @@ def get_datadis_data(config):
     s = time.time()
     logger.debug("Starting data retrieval", extra={'phase': 'GATHER'})
     while True:
-        item = red.rpop(config['redis']['devices'])
+        item = red.lpop(config['redis']['devices'])
         if not item:
             break
         item_map = pickle.loads(item)
