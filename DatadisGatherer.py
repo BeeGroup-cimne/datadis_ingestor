@@ -11,10 +11,12 @@ from beedis import ENDPOINTS, datadis
 from dateutil.relativedelta import relativedelta
 import logging
 import plugins
+import time
 
 logger = logging.getLogger()
 
 TZ = pytz.timezone("Europe/Madrid")
+
 
 def parse_max_power_chunk(max_power):
     if len(max_power) <= 0:
@@ -97,11 +99,65 @@ data_types_dict = {
     }
 }
 
+
 def get_devices_from_user_datadis(user, password, authorized_nif):
     try:
         datadis.Datadis.connection(username=user, password=password, timeout=1000)
-        logger.info(f"Login success", extra={'user': user, "phase": "GATHER"})
         supplies = datadis.Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
+        gene_user = "S0811001G"
+
+        if user == gene_user:
+            max_retries = 10
+            sleep_seconds = 5
+            attempts = 0
+
+            while len(supplies) <= 1550 and attempts < max_retries:
+                attempts += 1
+                logger.debug(
+                    f"Supplies count ({len(supplies)}) is too low. Retrying in {sleep_seconds}s... (Attempt {attempts}/{max_retries})",
+                    extra={'user': user, "phase": "GATHER_RETRY"}
+                )
+                time.sleep(sleep_seconds)
+
+                supplies = datadis.Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
+
+            if len(supplies) <= 1550:
+                logger.error(
+                    f"CRITICAL: Failed to reach >1550 supplies after {max_retries} attempts. Final count: {len(supplies)}",
+                    extra={'user': user, "phase": "GATHER_TIMEOUT"}
+                )
+            else:
+                logger.info(
+                    f"Successfully gathered supplies",
+                    extra={'user': user, "total_supplies": len(supplies), "date": datetime.today(), "phase": "GATHER_SUCCESS"}
+                )
+        else:
+            max_retries = 5
+            sleep_seconds = 5
+            attempts = 0
+
+            while len(supplies) == 0 and attempts < max_retries:
+                attempts += 1
+                logger.debug(
+                    f"Supplies count ({len(supplies)}) is too low. Retrying in {sleep_seconds}s... (Attempt {attempts}/{max_retries})",
+                    extra={'user': user, "phase": "GATHER_RETRY"}
+                )
+                time.sleep(sleep_seconds)
+
+                supplies = datadis.Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
+
+            if len(supplies) <= 0:
+                logger.error(
+                    f"CRITICAL: Failed to reach >0 supplies after {max_retries} attempts. Final count: {len(supplies)}",
+                    extra={'user': user, "phase": "GATHER_TIMEOUT"}
+                )
+            else:
+                logger.info(
+                    f"Successfully gathered supplies",
+                    extra={'user': user, "total_supplies": len(supplies), "date": datetime.today(), "phase": "GATHER_SUCCESS"}
+                )
+
+
         if not supplies:
             supplies = []
             logger.error(f"User empty", extra={"phase": "GATHER", "user": user,
@@ -116,7 +172,6 @@ def get_devices_from_user_datadis(user, password, authorized_nif):
                                               "authorized_nif": authorized_nif})
         return []
 
-    logger.debug(f"{user} done", extra={"phase": "GATHER"})
     return supplies
 
 
@@ -137,7 +192,7 @@ def get_mongo_info(supply, datadis_devices):
             "_id": supply['cups']
         }
     date_ini = datetime.today().replace(hour=0, day=1, minute=0, second=0, microsecond=0) - relativedelta(
-            months=23)
+        months=23)
     now = datetime.today().date() + relativedelta(day=31, hour=23, minute=59, second=59)
     try:
         date_end = datetime.strptime(supply['validDateTo'][:-2], '%Y/%m') + \
@@ -175,8 +230,8 @@ def get_mongo_info(supply, datadis_devices):
 def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
     try:
         datadis.Datadis.connection(username=user, password=password, timeout=1000)
-        logger.info(f"Login success for data", extra={'user': user, "phase": "GATHER"})
         for supply in supplies:
+            # break
             try:
                 supply['nif'] = user
                 supply['authorized_nif'] = nif
@@ -188,16 +243,18 @@ def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
                 downloaded_elems = download_device(supply, device, datadis_devices, dblist, tables, row_keys, config)
                 supply['measurements'] = downloaded_elems
                 save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply, row_keys,
-                                       dblist, tables, config)
+                                  dblist, tables, config)
                 contracts_dd = datadis.Datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
-                                                     distributor_code=supply['distributorCode'], authorized_nif=nif)
+                                                             distributor_code=supply['distributorCode'],
+                                                             authorized_nif=nif)
                 contract = pd.DataFrame.from_records(contracts_dd).set_index('startDate') \
                     .reset_index().iloc[-1].to_dict()
                 logger.info(f"Contracts gathered", extra={'user': user, "phase": "GATHER"})
                 save_datadis_data(settings.TOPIC_STATIC, "contracts", contract['cups'], contract,
-                                       row_keys, dblist, tables, config)
+                                  row_keys, dblist, tables, config)
+
             except Exception as e:
-                logger.error(f"Error", extra={"phase": "GATHER", "user": user, "exception": str(e),
+                logger.error(f"Error data login", extra={"phase": "GATHER", "user": user, "exception": str(e),
                                               "authorized_nif": nif, ", db_list": dblist})
 
     except Exception as e:
@@ -237,6 +294,7 @@ def save_datadis_data(topic, collection_type, key, data, row_keys, dblist, table
                                       tables=tables_, row_keys=row_keys, kwargs=kwargs)
         producer.flush()
     producer.close()
+
 
 def parse_arguments(row, type_params, date_ini, date_end):
     arguments = {}
@@ -284,13 +342,14 @@ def send_final_message(config):
     if metadata is None:
         raise ValueError(f"The topic does not exist")
     for part in metadata:
-        data = {"kwargs":{"collection_type": "FINAL_MESSAGE"}}
+        data = {"kwargs": {"collection_type": "FINAL_MESSAGE"}}
         producer.send(settings.TOPIC_STATIC, value=data, partition=part)
 
 
 def download_device(supply, device, datadis_devices, dblist, tables, row_keys, config):
     downloaded_elems = set()
     for data_type, type_params in data_types_dict.items():
+        # break
         m_property, freq = data_type.split("_")
         if type_params['type_data'] == "timeseries":
             # get all incomplete chunks
@@ -298,9 +357,15 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
                            if x['values'] < x['total'] and x['retries'] > 0 and
                            x['date_ini_block'] > datetime.today() - relativedelta(years=1, months=11, day=1, hour=0, minute=0, second=0, microsecond=0)]
             for status in status_list:
+                # break
                 data = download_chunk(supply, type_params, status)
                 data_df = type_params['parser'](data)
                 logger.info(f"Downloaded data {data_df}")
+
+                logger.info(f"Data block downloaded", extra={"nif": supply['nif'], "cups": supply['cups'],
+                                                             "type": data_type, "ini_date": status['date_ini_block'],
+                                                             "total_values": len(data_df), "timestamp": datetime.today()})
+
                 if len(data_df) == status['values']:
                     status['retries'] -= 1
                 if len(data_df) > 0:

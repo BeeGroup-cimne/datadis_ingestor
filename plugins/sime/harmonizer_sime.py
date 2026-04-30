@@ -1,8 +1,5 @@
 import datetime
-import os
 from datetime import timedelta
-
-import dotenv
 import pytz
 import pandas as pd
 import rdflib
@@ -15,6 +12,11 @@ import neo4j
 import beelib
 import numpy as np
 from plugins.sime import SIMEImport
+import logging
+from pythonjsonlogger import jsonlogger
+
+
+logger = logging.getLogger("datadis_harmonizer")
 
 time_to_timedelta = {
     "PT1H": timedelta(hours=1),
@@ -66,7 +68,7 @@ def harmonize_supplies(data):
     config = beelib.beeconfig.read_config(SIMEImport.config_file)
 
     # If the CUPS is old, keep its relationship with its current ENS
-    driver = neo4j.GraphDatabase().driver(**config['neo4j'])
+    driver = neo4j.GraphDatabase.driver(**config['neo4j'])
     with driver.session() as session:
         cups_ens = session.run("""MATCH (n:bigg__UtilityPointOfDelivery)<-[:bigg__hasUtilityPointOfDelivery]-
         (:bigg__BuildingSpace)<-[:bigg__hasSpace]-(b:bigg__Building) 
@@ -77,7 +79,7 @@ def harmonize_supplies(data):
     df['ens'] = df.supply_name.map(cups_ens)
 
     # If the CUPS is new, then link it to the corresponding generic building
-    driver = neo4j.GraphDatabase().driver(**config['neo4j'])
+    driver = neo4j.GraphDatabase.driver(**config['neo4j'])
     with driver.session() as session:
         nif_ens = session.run("""MATCH (o:bigg__Organization)-[:bigg__hasSubOrganization]->(g:bigg__Organization)-
         [:bigg__managesBuilding]->(b:bigg__Building) WHERE g.generic=1
@@ -151,6 +153,9 @@ def harmonize_supplies(data):
         MERGE(n)-[:importedFromSource]->(s)
         REMOVE n.bigg__nif""")
 
+    logger.info(f"Harmonized {len(df)} supplies", extra={'phase': "HARMONIZE"})
+
+
 
 def create_sensor_measurement(device_uri, sensor_uri, measurement_uri, sensor):
     rdf_tmp = rdflib.Graph()
@@ -182,6 +187,10 @@ def harmonize_timeseries(data, freq, prop):
     :return:
     """
     df = pd.DataFrame(data)
+
+    for _ in df['cups'].unique():
+        logger.info(f"Processing Timeseries", extra={'phase': "HARMONIZE"})
+
     if df.empty:
         return
     df["start"] = df['timestamp']
@@ -192,7 +201,7 @@ def harmonize_timeseries(data, freq, prop):
     rdf = rdflib.Graph()
     df_final = pd.DataFrame()
     config = beelib.beeconfig.read_config(SIMEImport.config_file)
-    driver = neo4j.GraphDatabase().driver(**config['neo4j'])
+    driver = neo4j.GraphDatabase.driver(**config['neo4j'])
     for device_id, data_group in df.groupby("cups"):
         data_group.set_index("datetime", inplace=True)
         data_group.sort_index(inplace=True)
@@ -226,6 +235,10 @@ def harmonize_timeseries(data, freq, prop):
     beelib.beehbase.save_to_hbase(df_final.to_dict(orient="records"), table_name, config['hbase']['connection'],
                               [("v", ["value"]), ("info", ["end", "isReal"])],
                               ["bucket", "hash", "start"])
+
+    for _ in df['cups'].unique():
+        logger.info(f"Sent Timeseries to HBase", extra={'phase': "HARMONIZE"})
+
     producer = beelib.beekafka.create_kafka_producer(config['kafka']['connection'], encoding="JSON")
     df_final['freq'] = freq
     df_final['property'] = prop
@@ -234,9 +247,12 @@ def harmonize_timeseries(data, freq, prop):
         hash_key="hash", is_real="True",
         axis=1)
     send_to_kafka(producer, config['kafka']['topic'], df_to_save)
+    for _ in df['cups'].unique():
+        logger.info(f"Sent timeseries to Influx", extra={'phase': "HARMONIZE"})
 
 
 def end_process():
+    logger.info(f"Ending harmonize process", extra={'phase': "END_HARMONIZE"})
     config = beelib.beeconfig.read_config(SIMEImport.config_file)
     driver = neo4j.GraphDatabase.driver(**config['neo4j'])
 
@@ -316,3 +332,4 @@ def end_process():
                     """
             with driver.session() as session:
                 session.run(query)
+    logger.info(f"Harmonize process ended", extra={'phase': "END_HARMONIZE"})

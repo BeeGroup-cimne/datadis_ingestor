@@ -28,7 +28,7 @@ class SIMEImport(DatadisInputPlugIn):
                 SET n.bigg__enrolled = False
                 """
         config_sime = beelib.beeconfig.read_config('plugins/secrets/config_sime.json')
-        driver = GraphDatabase().driver(**config_sime['neo4j'])
+        driver = GraphDatabase.driver(**config_sime['neo4j'])
         with driver.session() as session:
             session.run(queryEnrollment)
 

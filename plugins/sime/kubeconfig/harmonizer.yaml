@@ -12,9 +12,9 @@ spec:
     type: Recreate
   template:
     metadata:
-        labels:
-            app: harmonizer-datadis-icaen
-            logger: datadis-logger-icaen
+      labels:
+        app: harmonizer-datadis-icaen
+        logger: datadis-logger
     spec:
       hostAliases:
         - ip: "10.0.88.76"
@@ -55,6 +55,8 @@ spec:
         env:
           - name: CONF_FILE
             value: "config.json"
+          - name: PYTHONUNBUFFERED
+            value: "1"
         volumeMounts:
         - name: datadis-base-secret
           mountPath: /datadis/config.json

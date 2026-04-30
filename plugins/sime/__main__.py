@@ -8,11 +8,16 @@ import logging
 from pythonjsonlogger import jsonlogger
 from plugins.sime import SIMEImport
 
-logger = logging.getLogger()
-logger.setLevel("DEBUG")
+logger = logging.getLogger("datadis_harmonizer")  # 1. Give it a specific name!
+logger.propagate = False                          # 2. THE SHIELD: Do not let Faust override this!
+logger.setLevel("INFO")
+
 logHandler = logging.StreamHandler()
 formatter = jsonlogger.JsonFormatter('%(asctime)s - %(levelname)s - %(name)s: %(message)s')
 logHandler.setFormatter(formatter)
+
+if logger.hasHandlers():
+    logger.handlers.clear()
 logger.addHandler(logHandler)
 
 config = beelib.beeconfig.read_config()
@@ -48,7 +53,7 @@ async def join_supplies(records):
             tmp.update(record['data'])
             record['data'] = tmp
             await process_table.cast(value=record)
-        except:
+        except Exception:
             supplies_table[record['data']['cups']] = record['data']
 
 
@@ -60,9 +65,9 @@ async def cleanup_agent(records):
 
         # Safe copy of keys to prevent runtime iteration errors
         keys = list(supplies_table.keys())
-
+        logger.debug(f"Keys", extra={'phase': 'HARMONIZE_CLEANUP', 'keys': list(keys)})
         for k in keys:
-            logger.debug("Supply cleanup", extra={'phase': 'HARMONIZE', 'supply': k})
+            logger.debug("Supply cleanup", extra={'phase': 'HARMONIZE_CLEANUP', 'supply': k})
             supplies_table[k] = {}  # This is now 100% safe
 
         end_process()
