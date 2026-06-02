@@ -237,7 +237,8 @@ def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
                 supply['authorized_nif'] = nif
                 mongo = pymongo.MongoClient(
                     f"mongodb://{config['mongo']['user']}:{config['mongo']['password']}@"
-                    f"{config['mongo']['host']}:{config['mongo']['port']}/{config['mongo']['database']}")
+                    f"{config['mongo']['host']}:{config['mongo']['port']}/{config['mongo']['database']}?authSource=admin"
+                )
                 datadis_devices = mongo[config['mongo']['database']][config['mongo']['collection']]
                 device = get_mongo_info(supply, datadis_devices)
                 downloaded_elems = download_device(supply, device, datadis_devices, dblist, tables, row_keys, config)
