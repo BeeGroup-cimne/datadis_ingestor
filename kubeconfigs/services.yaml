@@ -51,9 +51,8 @@ spec:
               - "database3-vpn"
           containers:
           - name: datadis-gather-starter
-            image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:latest
+            image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:prod
             command: ["python3", "launcher.py", "-l", "producer", "-n", "10"]
-            #command: ["/bin/sh", "-ec", "sleep 1000"]
             env:
               - name: CONF_FILE
                 value: "config.json"
@@ -64,14 +63,8 @@ spec:
             - name: datadis-plugins-secret
               mountPath: /datadis/plugins/secrets/
             - name: kafka-secret
-              mountPath: /datadis/kafka_ca_server.crt
-              subPath: kafka_ca_server.crt
-            - name: kafka-secret
-              mountPath: /datadis/kafka_ca_user.crt
-              subPath: kafka_ca_user.crt
-            - name: kafka-secret
-              mountPath: /datadis/kafka_key_user.key
-              subPath: kafka_key_user.key
+              mountPath: /datadis/ca.crt
+              subPath: ca.crt
           volumes:
           - name: datadis-base-secret
             secret:
@@ -84,14 +77,10 @@ spec:
               secretName: datadis-plugins-secret
           - name: kafka-secret
             secret:
-              secretName: kafka-secret-ovh
+              secretName: strimzi-cluster-cluster-ca-cert
               items:
-                - key: kafka_ca_server.crt
-                  path: kafka_ca_server.crt
-                - key: kafka_ca_user.crt
-                  path: kafka_ca_user.crt
-                - key: kafka_key_user.key
-                  path: kafka_key_user.key
+                - key: ca.crt
+                  path: ca.crt
           restartPolicy: Never
           imagePullSecrets:
           - name: odin1pullsecret
@@ -152,7 +141,7 @@ spec:
               - "database3-vpn"
           containers:
           - name: datadis-gather-consumer
-            image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:latest
+            image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:prod
             command: ["python3", "launcher.py", "-l", "consumer", "-n", "10"]
             env:
               - name: CONF_FILE
@@ -164,14 +153,8 @@ spec:
             - name: datadis-plugins-secret
               mountPath: /datadis/plugins/secrets/
             - name: kafka-secret
-              mountPath: /datadis/kafka_ca_server.crt
-              subPath: kafka_ca_server.crt
-            - name: kafka-secret
-              mountPath: /datadis/kafka_ca_user.crt
-              subPath: kafka_ca_user.crt
-            - name: kafka-secret
-              mountPath: /datadis/kafka_key_user.key
-              subPath: kafka_key_user.key
+              mountPath: /datadis/ca.crt
+              subPath: ca.crt
           volumes:
           - name: datadis-base-secret
             secret:
@@ -184,14 +167,10 @@ spec:
               secretName: datadis-plugins-secret
           - name: kafka-secret
             secret:
-              secretName: kafka-secret-ovh
+              secretName: strimzi-cluster-cluster-ca-cert
               items:
-                - key: kafka_ca_server.crt
-                  path: kafka_ca_server.crt
-                - key: kafka_ca_user.crt
-                  path: kafka_ca_user.crt
-                - key: kafka_key_user.key
-                  path: kafka_key_user.key
+                - key: ca.crt
+                  path: ca.crt
           restartPolicy: Never
           imagePullSecrets:
           - name: odin1pullsecret
