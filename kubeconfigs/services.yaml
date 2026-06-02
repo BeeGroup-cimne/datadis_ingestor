@@ -65,6 +65,12 @@ spec:
             - name: kafka-secret
               mountPath: /datadis/ca.crt
               subPath: ca.crt
+            - name: kafka-user-secret
+              mountPath: /datadis/user.crt
+              subPath: user.crt
+            - name: kafka-user-secret
+              mountPath: /datadis/user.key
+              subPath: user.key
           volumes:
           - name: datadis-base-secret
             secret:
@@ -81,6 +87,14 @@ spec:
               items:
                 - key: ca.crt
                   path: ca.crt
+          - name: kafka-user-secret
+            secret:
+              secretName: admin-user
+              items:
+                - key: user.crt
+                  path: user.crt
+                - key: user.key
+                  path: user.key
           restartPolicy: Never
           imagePullSecrets:
           - name: odin1pullsecret
@@ -155,6 +169,12 @@ spec:
             - name: kafka-secret
               mountPath: /datadis/ca.crt
               subPath: ca.crt
+            - name: kafka-user-secret
+              mountPath: /datadis/user.crt
+              subPath: user.crt
+            - name: kafka-user-secret
+              mountPath: /datadis/user.key
+              subPath: user.key
           volumes:
           - name: datadis-base-secret
             secret:
@@ -171,6 +191,14 @@ spec:
               items:
                 - key: ca.crt
                   path: ca.crt
+          - name: kafka-user-secret
+            secret:
+              secretName: admin-user
+              items:
+                - key: user.crt
+                  path: user.crt
+                - key: user.key
+                  path: user.key
           restartPolicy: Never
           imagePullSecrets:
           - name: odin1pullsecret
