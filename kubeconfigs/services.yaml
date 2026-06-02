@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: datadis-gather-starter
-  namespace: datadis
+  namespace: sime-prod-ingestors
 spec:
   suspend: false
   schedule: "0 22 */2 * *"
@@ -51,7 +51,7 @@ spec:
               - "database3-vpn"
           containers:
           - name: datadis-gather-starter
-            image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
+            image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:latest
             command: ["python3", "launcher.py", "-l", "producer", "-n", "10"]
             #command: ["/bin/sh", "-ec", "sleep 1000"]
             env:
@@ -63,6 +63,15 @@ spec:
               subPath: config.json
             - name: datadis-plugins-secret
               mountPath: /datadis/plugins/secrets/
+            - name: kafka-secret
+              mountPath: /app/kafka_ca_server.crt
+              subPath: kafka_ca_server.crt
+            - name: kafka-secret
+              mountPath: /app/kafka_ca_user.crt
+              subPath: kafka_ca_user.crt
+            - name: kafka-secret
+              mountPath: /app/kafka_key_user.key
+              subPath: kafka_key_user.key
           volumes:
           - name: datadis-base-secret
             secret:
@@ -73,6 +82,16 @@ spec:
           - name: datadis-plugins-secret
             secret:
               secretName: datadis-plugins-secret
+          - name: kafka-secret
+            secret:
+              secretName: kafka-secret-ovh
+              items:
+                - key: kafka_ca_server.crt
+                  path: kafka_ca_server.crt
+                - key: kafka_ca_user.crt
+                  path: kafka_ca_user.crt
+                - key: kafka_key_user.key
+                  path: kafka_key_user.key
           restartPolicy: Never
           imagePullSecrets:
           - name: odin1pullsecret
@@ -81,7 +100,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: datadis-gather-consumer
-  namespace: datadis
+  namespace: sime-prod-ingestors
 spec:
   suspend: false
   schedule: "10 22 */2 * *"
@@ -133,7 +152,7 @@ spec:
               - "database3-vpn"
           containers:
           - name: datadis-gather-consumer
-            image: 1l41bgc7.c1.gra9.container-registry.ovh.net/beegroup/datadis_ingestor:latest
+            image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:latest
             command: ["python3", "launcher.py", "-l", "consumer", "-n", "10"]
             env:
               - name: CONF_FILE
@@ -144,6 +163,15 @@ spec:
               subPath: config.json
             - name: datadis-plugins-secret
               mountPath: /datadis/plugins/secrets/
+            - name: kafka-secret
+              mountPath: /app/kafka_ca_server.crt
+              subPath: kafka_ca_server.crt
+            - name: kafka-secret
+              mountPath: /app/kafka_ca_user.crt
+              subPath: kafka_ca_user.crt
+            - name: kafka-secret
+              mountPath: /app/kafka_key_user.key
+              subPath: kafka_key_user.key
           volumes:
           - name: datadis-base-secret
             secret:
@@ -154,9 +182,21 @@ spec:
           - name: datadis-plugins-secret
             secret:
               secretName: datadis-plugins-secret
+          - name: kafka-secret
+            secret:
+              secretName: kafka-secret-ovh
+              items:
+                - key: kafka_ca_server.crt
+                  path: kafka_ca_server.crt
+                - key: kafka_ca_user.crt
+                  path: kafka_ca_user.crt
+                - key: kafka_key_user.key
+                  path: kafka_key_user.key
           restartPolicy: Never
           imagePullSecrets:
           - name: odin1pullsecret
 
  #kubectl create secret generic datadis-base-secret --from-file=config.json=config.json -n datadis
+ #kubectl create secret generic datadis-base-secret --from-file=config.json=config2.json -n sime-prod-ingestors
+
  #kubectl create secret generic datadis-plugins-secret --from-file=config_plugin_x.json=config_plugin_x.json --from-file=config_plugin_y.json=config_plugin_y.json -n datadis

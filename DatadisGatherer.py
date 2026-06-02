@@ -264,7 +264,7 @@ def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
 
 def save_datadis_data(topic, collection_type, key, data, row_keys, dblist, tables, config, **kwargs):
     kwargs.update({'collection_type': collection_type})
-    producer = beelib.beekafka.create_kafka_producer(config['kafka'], encoding="JSON")
+    producer = beelib.beekafka.create_kafka_producer(config['kafka']['connection'], encoding="JSON")
     if collection_type == 'timeseries':
         prop = kwargs['property'] if 'property' in kwargs else None
         freq = kwargs['freq'] if 'freq' in kwargs else None
@@ -337,7 +337,7 @@ def download_chunk(supply, type_params, status):
 
 
 def send_final_message(config):
-    producer = beelib.beekafka.create_kafka_producer(config['kafka'], encoding="JSON")
+    producer = beelib.beekafka.create_kafka_producer(config['kafka']['connection'], encoding="JSON")
     metadata = producer.partitions_for(settings.TOPIC_STATIC)
     if metadata is None:
         raise ValueError(f"The topic does not exist")
