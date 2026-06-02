@@ -64,13 +64,13 @@ spec:
             - name: datadis-plugins-secret
               mountPath: /datadis/plugins/secrets/
             - name: kafka-secret
-              mountPath: /app/kafka_ca_server.crt
+              mountPath: /datadis/kafka_ca_server.crt
               subPath: kafka_ca_server.crt
             - name: kafka-secret
-              mountPath: /app/kafka_ca_user.crt
+              mountPath: /datadis/kafka_ca_user.crt
               subPath: kafka_ca_user.crt
             - name: kafka-secret
-              mountPath: /app/kafka_key_user.key
+              mountPath: /datadis/kafka_key_user.key
               subPath: kafka_key_user.key
           volumes:
           - name: datadis-base-secret
@@ -164,13 +164,13 @@ spec:
             - name: datadis-plugins-secret
               mountPath: /datadis/plugins/secrets/
             - name: kafka-secret
-              mountPath: /app/kafka_ca_server.crt
+              mountPath: /datadis/kafka_ca_server.crt
               subPath: kafka_ca_server.crt
             - name: kafka-secret
-              mountPath: /app/kafka_ca_user.crt
+              mountPath: /datadis/kafka_ca_user.crt
               subPath: kafka_ca_user.crt
             - name: kafka-secret
-              mountPath: /app/kafka_key_user.key
+              mountPath: /datadis/kafka_key_user.key
               subPath: kafka_key_user.key
           volumes:
           - name: datadis-base-secret
