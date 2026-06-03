@@ -231,13 +231,13 @@ def harmonize_timeseries(data, freq, prop):
         data_group["hash"] = measurement_id
         df_final = pd.concat([df_final, data_group[["hash", "bucket", "start", "end", "value", "isReal"]]])
     save_to_neo4j(rdf, config)
-    table_name = config['hbase']['harmonized_data'].format(data_type=prop, freq=freq)
-    beelib.beehbase.save_to_hbase(df_final.to_dict(orient="records"), table_name, config['hbase']['connection'],
-                              [("v", ["value"]), ("info", ["end", "isReal"])],
-                              ["bucket", "hash", "start"])
+    # table_name = config['hbase']['harmonized_data'].format(data_type=prop, freq=freq)
+    # beelib.beehbase.save_to_hbase(df_final.to_dict(orient="records"), table_name, config['hbase']['connection'],
+    #                           [("v", ["value"]), ("info", ["end", "isReal"])],
+    #                           ["bucket", "hash", "start"])
 
-    for _ in df['cups'].unique():
-        logger.info(f"Sent Timeseries to HBase", extra={'phase': "HARMONIZE"})
+    # for _ in df['cups'].unique():
+    #     logger.info(f"Sent Timeseries to HBase", extra={'phase': "HARMONIZE"})
 
     producer = beelib.beekafka.create_kafka_producer(config['kafka']['connection'], encoding="JSON")
     df_final['freq'] = freq
