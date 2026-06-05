@@ -243,15 +243,16 @@ def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
                 device = get_mongo_info(supply, datadis_devices)
                 downloaded_elems = download_device(supply, device, datadis_devices, dblist, tables, row_keys, config)
                 supply['measurements'] = downloaded_elems
-                save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply, row_keys,
-                                  dblist, tables, config)
+                # save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply, row_keys,
+                #                   dblist, tables, config)
                 contracts_dd = datadis.Datadis.datadis_query(ENDPOINTS.GET_CONTRACT, cups=supply['cups'],
                                                              distributor_code=supply['distributorCode'],
                                                              authorized_nif=nif)
                 contract = pd.DataFrame.from_records(contracts_dd).set_index('startDate') \
                     .reset_index().iloc[-1].to_dict()
                 logger.info(f"Contracts gathered", extra={'user': user, "phase": "GATHER"})
-                save_datadis_data(settings.TOPIC_STATIC, "contracts", contract['cups'], contract,
+                supply.update(contract)
+                save_datadis_data(settings.TOPIC_STATIC, "supplies", supply['cups'], supply,
                                   row_keys, dblist, tables, config)
 
             except Exception as e:
