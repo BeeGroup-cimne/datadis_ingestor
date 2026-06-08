@@ -52,9 +52,12 @@ def main():
                 cleanup_agent()
 
             print(ts_records)
+            print(ts_records[0])
             for record in ts_records:
+                print(record)
                 print(record.keys())
                 for r in record:
+                    print(r)
                     print(r.keys())
                     if "sime" not in r['kwargs']['dblist']:
                         continue
