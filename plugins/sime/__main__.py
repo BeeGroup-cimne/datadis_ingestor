@@ -53,9 +53,9 @@ def main():
 
             print(ts_records)
             for record in ts_records:
-                print(record)
+                print(record.keys())
                 for r in record:
-                    print(r)
+                    print(r.keys())
                     if "sime" not in r['kwargs']['dblist']:
                         continue
                     if r['kwargs']['property'] not in ["EnergyConsumptionGridElectricity"]:
