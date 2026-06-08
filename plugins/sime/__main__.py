@@ -54,11 +54,13 @@ def main():
             print(ts_records)
             for record in ts_records:
                 print(record)
-                if "sime" not in record['kwargs']['dblist']:
-                    continue
-                if record['kwargs']['property'] not in ["EnergyConsumptionGridElectricity"]:
-                    continue
-                harmonize_timeseries(record['data'], record['kwargs']['freq'], record['kwargs']['property'])
+                for r in record:
+                    print(r)
+                    if "sime" not in r['kwargs']['dblist']:
+                        continue
+                    if r['kwargs']['property'] not in ["EnergyConsumptionGridElectricity"]:
+                        continue
+                    harmonize_timeseries(r['data'], r['kwargs']['freq'], r['kwargs']['property'])
 
 
 if __name__ == '__main__':
