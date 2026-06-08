@@ -16,3 +16,4 @@ ADD . .
 
 #  kubectl set image cronjob/datadis-gather-starter datadis-gather-starter=853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:$TAG -n sime-prod-ingestors
 #  kubectl set image cronjob/datadis-gather-consumer datadis-gather-consumer=853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:$TAG -n sime-prod-ingestors
+#  kubectl apply -f plugins/sime/kubeconfig/harmonizer.yaml

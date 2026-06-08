@@ -51,7 +51,9 @@ def main():
                 logger.debug("Dispatching final event to cleanup agent", extra={'phase': 'HARMONIZE_END'})
                 cleanup_agent()
 
+            print(ts_records)
             for record in ts_records:
+                print(record)
                 if "sime" not in record['kwargs']['dblist']:
                     continue
                 if record['kwargs']['property'] not in ["EnergyConsumptionGridElectricity"]:
