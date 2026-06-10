@@ -20,11 +20,6 @@ if logger.hasHandlers():
 logger.addHandler(logHandler)
 
 
-def cleanup_agent():
-    logger.debug("Executing final event cleanup", extra={'phase': 'HARMONIZE_CLEANUP'})
-    end_process()
-
-
 def main():
     logger.info("Starting consumer")
     conf = beelib.beeconfig.read_config()
@@ -54,7 +49,6 @@ def main():
                     logger.error(f"Failed to decode malformed Kafka message: {e}")
                     continue
 
-            # 3. Process Static Records
             messages = [x['data'] for x in static_records if
                         x.get('kwargs', {}).get('collection_type') != "FINAL_MESSAGE"]
             final = [x for x in static_records if x.get('kwargs', {}).get('collection_type') == "FINAL_MESSAGE"]
@@ -67,7 +61,7 @@ def main():
                             harmonize_supplies(messages)
             if final:
                 logger.debug("Dispatching final event to cleanup agent", extra={'phase': 'HARMONIZE_END'})
-                cleanup_agent()
+                end_process()
 
             for record in ts_records:
                 kwargs = record.get('kwargs', {})
