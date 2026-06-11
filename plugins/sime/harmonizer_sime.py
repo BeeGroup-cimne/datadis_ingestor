@@ -115,11 +115,8 @@ def harmonize_supplies(data):
 
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
 
-    logger.info(df)
-    logger.info(df.columns)
-
     if df['dateOwner'].notna().any():
-        df['dateOwner'] = df['dateOwner'].apply(lambda x: sort_owners(x) if pd.notnull(x) else x)
+        df['dateOwner'] = df['dateOwner'].apply(lambda x: sort_owners(x) if isinstance(x, list) else x)
 
         dt_start = pd.to_datetime(
             df['dateOwner'].apply(lambda x: x[0].get('startDate') if isinstance(x, list) and len(x) > 0 else np.nan),
