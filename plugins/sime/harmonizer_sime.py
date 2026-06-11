@@ -67,7 +67,16 @@ def harmonize_supplies(data):
     df = pd.DataFrame(data)
     config = beelib.beeconfig.read_config(SIMEImport.config_file)
 
-    # If the CUPS is old, keep its relationship with its current ENS
+    optional_cols = [
+        'dateOwner',
+        'endDate',
+        'contractedPowerkW',
+        'lastMarketerDate'
+    ]
+    for col in optional_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
     driver = neo4j.GraphDatabase.driver(**config['neo4j'])
     with driver.session() as session:
         cups_ens = session.run("""MATCH (n:bigg__UtilityPointOfDelivery)<-[:bigg__hasUtilityPointOfDelivery]-
@@ -78,8 +87,6 @@ def harmonize_supplies(data):
     df['supply_name'] = df['cups'].str[:20]
     df['ens'] = df.supply_name.map(cups_ens)
 
-    # If the CUPS is new, then link it to the corresponding generic building
-    driver = neo4j.GraphDatabase.driver(**config['neo4j'])
     with driver.session() as session:
         nif_ens = session.run("""MATCH (o:bigg__Organization)-[:bigg__hasSubOrganization]->(g:bigg__Organization)-
         [:bigg__managesBuilding]->(b:bigg__Building) WHERE g.generic=1
@@ -96,32 +103,48 @@ def harmonize_supplies(data):
     df['municipality'] = df['municipality'].map(fuzzy_map_mun)
     df['province'] = df['province'].map(fuzzy_map_prov)
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
+
     logger.info(df)
     logger.info(df.columns)
-    df['dateOwner'] = df['dateOwner'].apply(sort_owners)
-    dt_start = pd.to_datetime(
-        df['dateOwner'].apply(lambda x: x[0].get('startDate') if isinstance(x, list) and len(x) > 0 else np.nan),
-        format='%Y-%m-%d',
-        errors='coerce'
-    )
 
-    dt_end = pd.to_datetime(
-        df['dateOwner'].apply(lambda x: x[0].get('endDate') if isinstance(x, list) and len(x) > 0 else np.nan),
-        format='%Y-%m-%d',
-        errors='coerce'
-    )
-    df['stateCancelled'] = np.where(dt_end > dt_start, 'Accepted', None)
-    df['stateEnrolled'] = df['stateCancelled'].isna()
+    if df['dateOwner'].notna().any():
+        df['dateOwner'] = df['dateOwner'].apply(lambda x: sort_owners(x) if pd.notnull(x) else x)
 
-    df['startDate'] = dt_start.apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
-    df['endDate'] = dt_end.apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+        dt_start = pd.to_datetime(
+            df['dateOwner'].apply(lambda x: x[0].get('startDate') if isinstance(x, list) and len(x) > 0 else np.nan),
+            format='%Y-%m-%d',
+            errors='coerce'
+        )
 
-    df['endDate'] = df['endDate'].astype('object')
-    df['nif_ab'] = df['endDate'].apply(lambda x: 'Alta' if pd.isna(x) else x)
-    df['contractedPowerkW'] = df['contractedPowerkW'].apply(
-        lambda x: '-'.join(str(item) for item in x) if isinstance(x, list) else x
-    )
-    df['lastMarketerDate'] = pd.to_datetime(df['lastMarketerDate'], format='%Y/%m/%d').apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+        dt_end = pd.to_datetime(
+            df['dateOwner'].apply(lambda x: x[0].get('endDate') if isinstance(x, list) and len(x) > 0 else np.nan),
+            format='%Y-%m-%d',
+            errors='coerce'
+        )
+        df['stateCancelled'] = np.where(dt_end > dt_start, 'Accepted', None)
+        df['stateEnrolled'] = df['stateCancelled'].isna()
+
+        df['startDate'] = dt_start.apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+        df['endDate'] = dt_end.apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+    else:
+        df['stateEnrolled'] = False
+
+    if df['endDate'].notna().any():
+        df['endDate'] = df['endDate'].astype('object')
+        df['nif_ab'] = df['endDate'].apply(lambda x: 'Alta' if pd.isna(x) else x)
+    else:
+        df['nif_ab'] = 'Alta'
+
+    if df['contractedPowerkW'].notna().any():
+        df['contractedPowerkW'] = df['contractedPowerkW'].apply(
+            lambda x: '-'.join(str(item) for item in x) if isinstance(x, list) else x
+        )
+
+    if df['lastMarketerDate'].notna().any():
+        df['lastMarketerDate'] = pd.to_datetime(
+            df['lastMarketerDate'], format='%Y/%m/%d', errors='coerce'
+        ).apply(lambda x: x.isoformat() if pd.notnull(x) else np.nan)
+
 
     with driver.session() as session:
         data = session.run("""
@@ -130,11 +153,16 @@ def harmonize_supplies(data):
             RETURN {cups:n.bigg__deviceName, enrolled:n.bigg__enrolled} AS data
         """).data()
         data = pd.DataFrame.from_records([x['data'] for x in data])
-    df = pd.merge(df, data)
-    df['enrolled'] = df['enrolled'].fillna(False).astype(bool) | df['stateEnrolled'].fillna(False).astype(bool)
+
+    df = pd.merge(df, data, on='cups', how='left')
+
+    enrolled_db = df.get('enrolled', pd.Series(False, index=df.index)).fillna(False).astype(bool)
+    state_enrolled = df.get('stateEnrolled', pd.Series(False, index=df.index)).fillna(False).astype(bool)
+    df['enrolled'] = enrolled_db | state_enrolled
 
     map_and_save({"supplies": df.to_dict(orient="records")},
                  "plugins/sime/mapping.yaml", config)
+
     with driver.session() as session:
 
         session.run("""MATCH (n:bigg__Device) 
@@ -149,15 +177,14 @@ def harmonize_supplies(data):
         SET rp.selected=true, rp.source="DATADIS", 
             rc.selected=true, rc.source="DATADIS"
         """)
-        session.run(f"""MATCH (n:bigg__Device) 
+
+        session.run("""MATCH (n:bigg__Device) 
         WHERE n.bigg__nif is not NULL 
         MATCH (s:DatadisSource) WHERE s.username=n.bigg__nif
         MERGE(n)-[:importedFromSource]->(s)
         REMOVE n.bigg__nif""")
 
     logger.info(f"Harmonized {len(df)} supplies", extra={'phase': "HARMONIZE"})
-
-
 
 def create_sensor_measurement(device_uri, sensor_uri, measurement_uri, sensor):
     rdf_tmp = rdflib.Graph()
