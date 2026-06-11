@@ -96,8 +96,8 @@ def harmonize_supplies(data):
     df['municipality'] = df['municipality'].map(fuzzy_map_mun)
     df['province'] = df['province'].map(fuzzy_map_prov)
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
-    print(df)
-    print(df.columns)
+    logger.info(df)
+    logger.info(df.columns)
     df['dateOwner'] = df['dateOwner'].apply(sort_owners)
     dt_start = pd.to_datetime(
         df['dateOwner'].apply(lambda x: x[0].get('startDate') if isinstance(x, list) and len(x) > 0 else np.nan),
