@@ -67,13 +67,19 @@ def harmonize_supplies(data):
     df = pd.DataFrame(data)
     config = beelib.beeconfig.read_config(SIMEImport.config_file)
 
-    optional_cols = [
-        'dateOwner',
-        'endDate',
-        'contractedPowerkW',
-        'lastMarketerDate'
+    all_expected_cols = [
+        'address', 'cups', 'postalCode', 'province', 'provinceCode',
+        'municipality', 'municipioCode', 'distributor', 'validDateFrom',
+        'validDateTo', 'pointType', 'distributorCode', 'nif', 'authorized_nif',
+        'measurements', 'startDate', 'marketer', 'tension', 'accessFare',
+        'contractedPowerkW', 'timeDiscrimination', 'modePowerControl',
+        'endDate', 'codeFare', 'selfConsumptionTypeCode',
+        'selfConsumptionTypeDesc', 'section', 'subsection',
+        'partitionCoefficient', 'cau', 'installedCapacity', 'dateOwner',
+        'lastMarketerDate', 'maxPowerInstall'
     ]
-    for col in optional_cols:
+
+    for col in all_expected_cols:
         if col not in df.columns:
             df[col] = np.nan
 
@@ -84,6 +90,7 @@ def harmonize_supplies(data):
         RETURN distinct n.bigg__pointOfDeliveryIDFromOrganization as cups, b.bigg__buildingIDFromOrganization 
         as ens""").data()
         cups_ens = {v['cups']: v['ens'] for v in cups_ens}
+
     df['supply_name'] = df['cups'].str[:20]
     df['ens'] = df.supply_name.map(cups_ens)
 
@@ -96,12 +103,16 @@ def harmonize_supplies(data):
 
     locations_mun = fuzzy_locations("A.ADM3")
     locations_prov = fuzzy_locations("A.ADM2")
-    municipalities = df['municipality'].unique()
-    provinces = df['province'].unique()
+
+    municipalities = df['municipality'].dropna().unique()
+    provinces = df['province'].dropna().unique()
+
     fuzzy_map_mun = {x: locations_mun[process.extractOne(x, locations_mun.keys())[0]] for x in municipalities}
     fuzzy_map_prov = {x: locations_prov[process.extractOne(x, locations_prov.keys())[0]] for x in provinces}
+
     df['municipality'] = df['municipality'].map(fuzzy_map_mun)
     df['province'] = df['province'].map(fuzzy_map_prov)
+
     df['update_date'] = datetime.datetime.now(datetime.timezone.utc).astimezone().isoformat()
 
     logger.info(df)
@@ -185,6 +196,7 @@ def harmonize_supplies(data):
         REMOVE n.bigg__nif""")
 
     logger.info(f"Harmonized {len(df)} supplies", extra={'phase': "HARMONIZE"})
+
 
 def create_sensor_measurement(device_uri, sensor_uri, measurement_uri, sensor):
     rdf_tmp = rdflib.Graph()
