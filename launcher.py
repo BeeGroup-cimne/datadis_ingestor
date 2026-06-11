@@ -105,6 +105,7 @@ def get_users(config):
         logger.debug("Gathered users", extra={"username": row['username'], 'phase': "GATHER"})
         red.lpush(config['redis']['users'], pickle.dumps(row.to_dict()))
     logger.debug(f"Users upload took: {time.time()-s} seconds")
+    logger.info("Finishing the ingestor", extra={'phase': "END"})
 
 
 def sync_processors(config, num_processes, barrier_id):
