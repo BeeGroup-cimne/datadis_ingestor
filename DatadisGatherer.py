@@ -355,14 +355,17 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
         m_property, freq = data_type.split("_")
         if type_params['type_data'] == "timeseries":
             # get all incomplete chunks
+            logger.info(device[type_params["mongo_collection"]].values())
+
             status_list = [x for x in device[type_params["mongo_collection"]].values()
                            if x['values'] < x['total'] and x['retries'] > 0 and
                            x['date_ini_block'] > datetime.today() - relativedelta(years=1, months=11, day=1, hour=0, minute=0, second=0, microsecond=0)]
+            logger.info(status_list)
+
             for status in status_list:
                 # break
                 data = download_chunk(supply, type_params, status)
                 data_df = type_params['parser'](data)
-                logger.info(f"Downloaded data {data_df}")
 
                 logger.info(f"Data block downloaded", extra={"nif": supply['nif'], "cups": supply['cups'],
                                                              "type": data_type, "ini_date": status['date_ini_block'],
