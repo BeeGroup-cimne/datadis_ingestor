@@ -284,6 +284,8 @@ def harmonize_timeseries(data, freq, prop):
         harmonize_for_influx, timestamp_key="start", end="end", value_key="value",
         hash_key="hash", is_real="True",
         axis=1)
+    logger.info(f"Sending static data to topic 3 {config['kafka']['topic']}")
+
     send_to_kafka(producer, config['kafka']['topic'], df_to_save)
     for _ in df['cups'].unique():
         logger.info(f"Sent timeseries to Influx", extra={'phase': "HARMONIZE"})

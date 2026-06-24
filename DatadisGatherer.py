@@ -288,12 +288,14 @@ def save_datadis_data(topic, collection_type, key, data, row_keys, dblist, table
                     entry['datetime'] = entry['datetime'].isoformat()
             kwargs.update({"dblist": [db]})
             logger.debug(f"Sending timeseries to Kafka", extra={"phase": "GATHER", "tables": tables_})
+            logger.info(f"Sending static data to topic 1 {topic}")
             beelib.beekafka.send_to_kafka(producer, topic, key, data, tables=tables_, row_keys=row_keys_, kwargs=kwargs)
             producer.flush()
     else:
         tables_ = ['']
         kwargs.update({"dblist": dblist})
         logger.debug(f"Sending static data to Kafka", extra={"phase": "GATHER", "tables": tables_})
+        logger.info(f"Sending static data to topic 2 {topic}")
         beelib.beekafka.send_to_kafka(producer, topic, key, data,
                                       tables=tables_, row_keys=row_keys, kwargs=kwargs)
         producer.flush()
