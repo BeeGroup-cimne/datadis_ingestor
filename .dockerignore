@@ -7,4 +7,5 @@ env
 config*.json
 ssh_push.sh
 *csv
+*.jsonl
 _/*

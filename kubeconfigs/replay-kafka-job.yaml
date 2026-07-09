@@ -1,0 +1,128 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: datadis-kafka-replay
+  namespace: sime-prod-ingestors
+  labels:
+    logger: datadis-logger
+  annotations:
+    "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
+spec:
+  hostAliases:
+  - ip: "10.0.88.76"
+    hostnames:
+    - "master1.internal"
+  - ip: "10.0.87.95"
+    hostnames:
+      - "master2.internal"
+  - ip: "10.0.88.132"
+    hostnames:
+      - "worker1.internal"
+  - ip: "10.0.86.33"
+    hostnames:
+      - "worker2.internal"
+  - ip: "10.0.87.145"
+    hostnames:
+      - "worker3.internal"
+  - ip: "10.0.86.214"
+    hostnames:
+      - "worker4.internal"
+  - ip: "10.0.129.220"
+    hostnames:
+      - "kafka1.internal"
+  - ip: "10.0.88.175"
+    hostnames:
+      - "database1-vpn"
+  - ip: "10.0.88.151"
+    hostnames:
+      - "database2-vpn"
+  - ip: "10.0.87.50"
+    hostnames:
+      - "database3-vpn"
+  containers:
+  - name: datadis-kafka-replay
+    # Built from the same Dockerfile as datadis-gather-starter/consumer - just needs
+    # tools/replay_kafka_messages.py in the repo when built. The data file is NOT baked
+    # in (it's excluded via .dockerignore's *.jsonl rule): it's `kubectl cp`'d into
+    # /data below instead, so re-testing with a different/bigger file never needs a
+    # rebuild. Rebuild/push once to pick up the new script:
+    #   TAG=$(git rev-parse --short HEAD)
+    #   docker buildx build --platform linux/amd64,linux/arm64 --push \
+    #     -t 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:$TAG .
+    image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:$TAG
+    # Idles instead of running the replay immediately - kubectl cp needs a running
+    # container to copy into, and we want a deliberate --dry-run/--limit check first.
+    command: ["sleep", "infinity"]
+    env:
+      - name: CONF_FILE
+        value: "config.json"
+    volumeMounts:
+    - name: datadis-base-secret
+      mountPath: /datadis/config.json
+      subPath: config.json
+    - name: kafka-secret
+      mountPath: /datadis/ca.crt
+      subPath: ca.crt
+    - name: kafka-user-secret
+      mountPath: /datadis/user.crt
+      subPath: user.crt
+    - name: kafka-user-secret
+      mountPath: /datadis/user.key
+      subPath: user.key
+    - name: replay-data
+      mountPath: /data
+  volumes:
+  - name: datadis-base-secret
+    secret:
+      secretName: datadis-base-secret
+      items:
+      - key: config.json
+        path: config.json
+  - name: kafka-secret
+    secret:
+      secretName: strimzi-cluster-cluster-ca-cert
+      items:
+        - key: ca.crt
+          path: ca.crt
+  - name: kafka-user-secret
+    secret:
+      secretName: admin-user
+      items:
+        - key: user.crt
+          path: user.crt
+        - key: user.key
+          path: user.key
+  - name: replay-data
+    emptyDir: {}
+  restartPolicy: Never
+  imagePullSecrets:
+  - name: odin1pullsecret
+
+# Exact steps:
+#
+#   1. Build & push the image once, so it has tools/replay_kafka_messages.py
+#      (the 49MB kafka_timeseries.jsonl does NOT need to be in it):
+#        TAG=$(git rev-parse --short HEAD)
+#        docker buildx build --platform linux/amd64,linux/arm64 --push \
+#          -t 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:$TAG .
+#      Then set image: ...:$TAG above (replacing REPLACE_WITH_TAG) before applying.
+#
+#   2. Start the pod (it just idles until you exec into it):
+#        kubectl apply -f kubeconfigs/replay-kafka-job.yaml
+#        kubectl wait --for=condition=Ready pod/datadis-kafka-replay -n sime-prod-ingestors
+#
+#   3. Copy the data file in (works for any size, no rebuild needed):
+#        kubectl cp testing2/kafka_timeseries.jsonl \
+#          sime-prod-ingestors/datadis-kafka-replay:/data/kafka_timeseries.jsonl
+#
+#   4. Sanity check first, without touching the real cluster:
+#        kubectl exec -it datadis-kafka-replay -n sime-prod-ingestors -- \
+#          python3 tools/replay_kafka_messages.py /data/kafka_timeseries.jsonl --limit 10 --dry-run
+#
+#   5. Run the real replay:
+#        kubectl exec -it datadis-kafka-replay -n sime-prod-ingestors -- \
+#          python3 tools/replay_kafka_messages.py /data/kafka_timeseries.jsonl
+#      (add --limit N first if you want a small real smoke test before the full file)
+#
+#   6. Clean up (nothing auto-deletes this pod - it idles until you do):
+#        kubectl delete pod datadis-kafka-replay -n sime-prod-ingestors
