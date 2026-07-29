@@ -23,6 +23,10 @@ class DatadisInputPlugIn(object):
 def get_plugins():
     plugins_path = [x for x in os.listdir("plugins") if
                     os.path.isdir(f"plugins/{x}") and "__init__.py" in os.listdir(f"plugins/{x}")]
+    plugin_filter = os.getenv("PLUGIN_FILTER")
+    if plugin_filter:
+        allowed = {p.strip() for p in plugin_filter.split(",") if p.strip()}
+        plugins_path = [x for x in plugins_path if x in allowed]
     plugins = []
     for m in plugins_path:
         module = importlib.import_module(f"plugins.{m}")
