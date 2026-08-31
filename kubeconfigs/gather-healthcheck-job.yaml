@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: datadis-gather-healthcheck
+  namespace: sime-prod-ingestors
+spec:
+  suspend: false
+  # Runs daily (the real gather cycle in services.yaml only fires every ~2 days and
+  # takes ~2h to finish) - see the note at the top of tools/check_gather_health.py for
+  # why a daily check with a wide lookback is simpler/more robust than trying to mirror
+  # the producer/consumer's own */2 day-of-month schedule across midnight.
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            logger: datadis-logger
+          annotations:
+            "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
+        spec:
+          containers:
+          - name: datadis-gather-healthcheck
+            image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:prod
+            command: ["python3", "tools/check_gather_health.py"]
+            env:
+              - name: CONF_FILE
+                value: "config.json"
+              - name: LOOKBACK_HOURS
+                value: "50"
+              - name: DISCORD_WEBHOOK_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: datadis-discord-webhook
+                    key: webhook_url
+            volumeMounts:
+            - name: datadis-base-secret
+              mountPath: /datadis/config.json
+              subPath: config.json
+          volumes:
+          - name: datadis-base-secret
+            secret:
+              secretName: datadis-base-secret
+              items:
+              - key: config.json
+                path: config.json
+          restartPolicy: Never
+          imagePullSecrets:
+          - name: odin1pullsecret
+

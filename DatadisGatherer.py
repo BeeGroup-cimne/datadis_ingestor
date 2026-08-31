@@ -389,5 +389,6 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
                 downloaded_elems.add((m_property, freq))
 
     # store status info
+    device['last_updated'] = datetime.utcnow()
     datadis_devices.replace_one({"_id": device['_id']}, device, upsert=True)
     return list(downloaded_elems)
