@@ -19,7 +19,7 @@ RAW_MEASURE_FRAGMENTS = {
 class COSMICImport(DatadisInputPlugIn):
     config_file = "plugins/secrets/config_cosmic.json"
     source = "cosmic"
-    row_keys = [('uri', 'timestamp')]
+    row_keys = [('uri_measurement', 'timestamp')]
     tables = ["datadis:raw_datadis_ts_{prop}_{freq}"]
     topic = 'datadis.cosmichbase'
 
@@ -41,7 +41,7 @@ class COSMICImport(DatadisInputPlugIn):
             if chunk.empty:
                 continue
             chunk["property"] = column
-            chunk["uri"] = chunk["cups"].apply(lambda cups: f"https://cosmic.cat#{fragment}-{cups}-{freq}")
+            chunk["uri_measurement"] = chunk["cups"].apply(lambda cups: f"https://cosmic.cat#{fragment}-{cups}-{freq}")
             split_rows.append(chunk)
 
         if not split_rows:
