@@ -266,6 +266,9 @@ def get_data(user, password, nif, dblist, supplies, tables, row_keys, config):
                                       "authorized_nif": nif, ", db_list": dblist})
 
 
+KAFKA_TIMESERIES_BATCH_SIZE = 500
+
+
 def save_datadis_data(topic, collection_type, key, data, row_keys, dblist, tables, config, **kwargs):
     kwargs.update({'collection_type': collection_type})
     producer = beelib.beekafka.create_kafka_producer(config['kafka']['connection'], encoding="JSON")
@@ -277,19 +280,25 @@ def save_datadis_data(topic, collection_type, key, data, row_keys, dblist, table
             tables_ = [s.format(freq=freq, prop=prop) for s in tables[db]]
             topic = plug.topic
             row_keys_ = [list(item) for item in row_keys[db]]
-            # Get raw data prepared to upload to HBase using the proper plugin to set up the timeseries
-            data = pd.DataFrame(data)
-            data['freq'] = freq
-            data['prop'] = prop
-            data = plug.prepare_raw_data(data)
-            data = data.to_dict(orient='records')
-            for entry in data:
+            # Get raw data prepared to upload to HBase using the proper plugin to set up the timeseries.
+            # Built from the original `data` every iteration (not reassigned in place) so one plugin's
+            # reshaped output (e.g. cosmic's per-property split) can't leak into the next plugin in dblist.
+            db_df = pd.DataFrame(data)
+            db_df['freq'] = freq
+            db_df['prop'] = prop
+            db_df = plug.prepare_raw_data(db_df)
+            records = db_df.to_dict(orient='records')
+            for entry in records:
                 if 'datetime' in entry and isinstance(entry['datetime'], pd.Timestamp):
                     entry['datetime'] = entry['datetime'].isoformat()
             kwargs.update({"dblist": [db]})
             logger.debug(f"Sending timeseries to Kafka", extra={"phase": "GATHER", "tables": tables_})
             logger.info(f"Sending data to topic {topic}")
-            beelib.beekafka.send_to_kafka(producer, topic, key, data, tables=tables_, row_keys=row_keys_, kwargs=kwargs)
+            # Sent in batches so a plugin that expands one input row into several (e.g. cosmic's
+            # per-property split) can't produce a single message over the broker's size limit.
+            for i in range(0, len(records), KAFKA_TIMESERIES_BATCH_SIZE):
+                batch = records[i:i + KAFKA_TIMESERIES_BATCH_SIZE]
+                beelib.beekafka.send_to_kafka(producer, topic, key, batch, tables=tables_, row_keys=row_keys_, kwargs=kwargs)
             producer.flush()
     else:
         tables_ = ['']
