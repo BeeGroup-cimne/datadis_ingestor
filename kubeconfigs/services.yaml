@@ -52,6 +52,7 @@ spec:
           containers:
           - name: datadis-gather-starter
             image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:prod
+            imagePullPolicy: Always
             command: ["python3", "launcher.py", "-l", "producer", "-n", "10"]
             env:
               - name: CONF_FILE
@@ -156,6 +157,7 @@ spec:
           containers:
           - name: datadis-gather-consumer
             image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:prod
+            imagePullPolicy: Always
             command: ["python3", "launcher.py", "-l", "consumer", "-n", "10"]
             env:
               - name: CONF_FILE
