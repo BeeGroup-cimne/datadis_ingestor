@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 # day after a "quiet" (no-run-scheduled) day. Detection of a fully-failed cycle can lag
 # by up to a day - that's an acceptable trade-off for a lightweight freshness check.
 LOOKBACK_HOURS = float(os.getenv("LOOKBACK_HOURS", "50"))
+HEALTHY_THRESHOLD_PCT = float(os.getenv("HEALTHY_THRESHOLD_PCT", "0.95"))
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
 config = beelib.beeconfig.read_config("config.json")
@@ -36,18 +37,24 @@ def check_gather_health():
     cutoff = datetime.utcnow() - timedelta(hours=LOOKBACK_HOURS)
     total = collection.count_documents({})
     fresh = collection.count_documents({"last_updated": {"$gte": cutoff}})
+    stale = total - fresh
+
+    pct_fresh = (fresh / total) if total else 0.0
 
     print(f"Total tracked CUPS: {total}")
-    print(f"Updated in the last {LOOKBACK_HOURS}h: {fresh}")
+    print(f"Updated in the last {LOOKBACK_HOURS}h: {fresh} ({pct_fresh:.1%})")
+    print(f"Not updated: {stale}")
 
-    if fresh == 0:
-        notify_discord(
-            f"\U0001F6A8 **Datadis gather healthcheck failed**\n"
-            f"No CUPS have been updated in the last {LOOKBACK_HOURS:.0f}h "
-            f"(out of {total} tracked). The producer/consumer cycle may have failed."
-        )
-        return False
-    return True
+    ok = pct_fresh >= HEALTHY_THRESHOLD_PCT
+    icon = "✅" if ok else "\U0001F6A8"
+    status = "healthy" if ok else "FAILED"
+    notify_discord(
+        f"{icon} **Datadis gather healthcheck: {status}**\n"
+        f"Updated in the last {LOOKBACK_HOURS:.0f}h: {fresh}/{total} ({pct_fresh:.1%}, "
+        f"threshold {HEALTHY_THRESHOLD_PCT:.0%})\n"
+        f"Not updated: {stale}"
+    )
+    return ok
 
 
 if __name__ == "__main__":
