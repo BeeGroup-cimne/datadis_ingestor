@@ -363,6 +363,7 @@ def send_final_message(config):
 
 def download_device(supply, device, datadis_devices, dblist, tables, row_keys, config):
     downloaded_elems = set()
+    any_data_saved = False
     for data_type, type_params in data_types_dict.items():
         # break
         m_property, freq = data_type.split("_")
@@ -394,10 +395,12 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
                         pytz.UTC)
                     status['date_max'] = pd.to_datetime(data_df[-1]['timestamp'], unit="s"). \
                         tz_localize(pytz.UTC)
+                    any_data_saved = True
                 status['values'] = len(data_df)
                 downloaded_elems.add((m_property, freq))
 
     # store status info
-    device['last_updated'] = datetime.utcnow()
+    if any_data_saved:
+        device['last_data_saved_at'] = datetime.utcnow()
     datadis_devices.replace_one({"_id": device['_id']}, device, upsert=True)
     return list(downloaded_elems)

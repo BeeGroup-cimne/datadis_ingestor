@@ -36,23 +36,26 @@ def check_gather_health():
 
     cutoff = datetime.utcnow() - timedelta(hours=LOOKBACK_HOURS)
     total = collection.count_documents({})
-    fresh = collection.count_documents({"last_updated": {"$gte": cutoff}})
+    # last_data_saved_at only gets set when a chunk actually returned new values (DatadisGatherer.py's
+    # download_device()) - unlike a plain "was this device touched" timestamp, this can't be faked by
+    # a run that executed but saved nothing (e.g. Datadis's 24h per-query dedup returning empty chunks).
+    fresh = collection.count_documents({"last_data_saved_at": {"$gte": cutoff}})
     stale = total - fresh
 
     pct_fresh = (fresh / total) if total else 0.0
 
     print(f"Total tracked CUPS: {total}")
-    print(f"Updated in the last {LOOKBACK_HOURS}h: {fresh} ({pct_fresh:.1%})")
-    print(f"Not updated: {stale}")
+    print(f"New data saved in the last {LOOKBACK_HOURS}h: {fresh} ({pct_fresh:.1%})")
+    print(f"No new data: {stale}")
 
     ok = pct_fresh >= HEALTHY_THRESHOLD_PCT
     icon = "✅" if ok else "\U0001F6A8"
     status = "healthy" if ok else "FAILED"
     notify_discord(
         f"{icon} **Datadis gather healthcheck: {status}**\n"
-        f"Updated in the last {LOOKBACK_HOURS:.0f}h: {fresh}/{total} ({pct_fresh:.1%}, "
+        f"New data saved in the last {LOOKBACK_HOURS:.0f}h: {fresh}/{total} ({pct_fresh:.1%}, "
         f"threshold {HEALTHY_THRESHOLD_PCT:.0%})\n"
-        f"Not updated: {stale}"
+        f"No new data: {stale}"
     )
     return ok
 
