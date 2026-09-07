@@ -25,6 +25,7 @@ spec:
           containers:
           - name: datadis-gather-healthcheck
             image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:prod
+            imagePullPolicy: Always
             command: ["python3", "tools/check_gather_health.py"]
             env:
               - name: CONF_FILE
