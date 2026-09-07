@@ -9,7 +9,8 @@ spec:
   # takes ~2h to finish) - see the note at the top of tools/check_gather_health.py for
   # why a daily check with a wide lookback is simpler/more robust than trying to mirror
   # the producer/consumer's own */2 day-of-month schedule across midnight.
-  schedule: "0 3 * * *"
+  schedule: "0 6 * * *"
+  timeZone: "Europe/Madrid"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   jobTemplate:
