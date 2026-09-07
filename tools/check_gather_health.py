@@ -18,8 +18,6 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
 config = beelib.beeconfig.read_config("config.json")
 
-TRACKED_COLLECTIONS = ("data_1h", "data_15m", "max_power")
-
 
 def notify_discord(message, csv_content=None, csv_filename="failed_cups.csv"):
     if not DISCORD_WEBHOOK_URL:
@@ -43,32 +41,36 @@ def find_stale_cups(collection, cutoff):
     return {doc["_id"] for doc in collection.find(query, {"_id": 1})}
 
 
+def _has_exhausted_block(doc, field):
+    return any(
+        block.get("retries", 1) <= 0 and block.get("values", 0) < block.get("total", 0)
+        for block in (doc.get(field) or {}).values()
+    )
+
+
 def find_exhausted_retry_cups(collection):
-    """CUPS with a block that will never be retried again (retries hit 0 while still
-    incomplete) - a distinct failure from staleness, since a device's current period can
-    keep updating fine while an older block is permanently stuck incomplete."""
-    cups_affected = set()
-    blocks_affected = 0
-    projection = {c: 1 for c in TRACKED_COLLECTIONS}
-    for doc in collection.find({}, projection):
-        device_affected = False
-        for field in TRACKED_COLLECTIONS:
-            for block in (doc.get(field) or {}).values():
-                if block.get("retries", 1) <= 0 and block.get("values", 0) < block.get("total", 0):
-                    blocks_affected += 1
-                    device_affected = True
-        if device_affected:
-            cups_affected.add(doc["_id"])
-    return cups_affected, blocks_affected
+    """CUPS with a data_1h and/or data_15m block that will never be retried again (retries
+    hit 0 while still incomplete) - a distinct failure from staleness, since a device's
+    current period can keep updating fine while an older block is permanently stuck.
+    Returns (hourly_only, quarterly_only, both) - a device without any blocks for one of
+    the two frequencies simply can't appear as exhausted on that frequency, so it naturally
+    falls into hourly_only/quarterly_only rather than both."""
+    hourly = set()
+    quarterly = set()
+    for doc in collection.find({}, {"data_1h": 1, "data_15m": 1}):
+        if _has_exhausted_block(doc, "data_1h"):
+            hourly.add(doc["_id"])
+        if _has_exhausted_block(doc, "data_15m"):
+            quarterly.add(doc["_id"])
+    both = hourly & quarterly
+    return hourly - both, quarterly - both, both
 
 
-def build_failed_cups_csv(stale_cups, exhausted_cups):
-    failed_cups = stale_cups | exhausted_cups
-    if not failed_cups:
+def build_stale_cups_csv(stale_cups):
+    if not stale_cups:
         return None
-    lines = ["cups,stale,retries_exhausted"]
-    for cups in sorted(failed_cups):
-        lines.append(f"{cups},{cups in stale_cups},{cups in exhausted_cups}")
+    lines = ["cups"]
+    lines.extend(sorted(stale_cups))
     return "\n".join(lines)
 
 
@@ -82,34 +84,40 @@ def check_gather_health():
 
     cutoff = datetime.utcnow() - timedelta(hours=LOOKBACK_HOURS)
     total = collection.count_documents({})
+
+    hourly_only, quarterly_only, both = find_exhausted_retry_cups(collection)
+
     # last_data_saved_at only gets set when a chunk actually returned new values (DatadisGatherer.py's
     # download_device()) - unlike a plain "was this device touched" timestamp, this can't be faked by
     # a run that executed but saved nothing (e.g. Datadis's 24h per-query dedup returning empty chunks).
-    stale_cups = find_stale_cups(collection, cutoff)
-    fresh = total - len(stale_cups)
-    pct_fresh = (fresh / total) if total else 0.0
-
-    exhausted_cups, blocks_exhausted = find_exhausted_retry_cups(collection)
-    pct_exhausted = (len(exhausted_cups) / total) if total else 0.0
+    # CUPS exhausted on BOTH frequencies can structurally never get new data again, so they're excluded
+    # from the freshness population entirely rather than counted as "no new data".
+    stale_cups = find_stale_cups(collection, cutoff) - both
+    population = total - len(both)
+    fresh = population - len(stale_cups)
+    pct_fresh = (fresh / population) if population else 0.0
 
     print(f"Total tracked CUPS: {total}")
-    print(f"New data saved in the last {LOOKBACK_HOURS}h: {fresh} ({pct_fresh:.1%})")
+    print(f"New data saved in the last {LOOKBACK_HOURS}h: {fresh}/{population} ({pct_fresh:.1%}) "
+          f"[excludes {len(both)} CUPS exhausted on both frequencies]")
     print(f"No new data: {len(stale_cups)}")
-    print(f"Devices with a permanently stuck block (retries exhausted): {len(exhausted_cups)} ({pct_exhausted:.1%}), "
-          f"{blocks_exhausted} block(s) total")
+    print(f"Hourly-only retries exhausted: {len(hourly_only)}")
+    print(f"Quarterly-only retries exhausted: {len(quarterly_only)}")
+    print(f"Both (hourly & quarterly) retries exhausted: {len(both)}")
 
     ok = pct_fresh >= HEALTHY_THRESHOLD_PCT
     icon = "✅" if ok else "\U0001F6A8"
     status = "healthy" if ok else "FAILED"
     message = (
         f"{icon} **Datadis gather healthcheck: {status}**\n"
-        f"New data saved in the last {LOOKBACK_HOURS:.0f}h: {fresh}/{total} ({pct_fresh:.1%}, "
+        f"New data saved in the last {LOOKBACK_HOURS:.0f}h: {fresh}/{population} ({pct_fresh:.1%}, "
         f"threshold {HEALTHY_THRESHOLD_PCT:.0%})\n"
         f"No new data: {len(stale_cups)}\n"
-        f"Devices with a permanently stuck block (retries exhausted): {len(exhausted_cups)} ({pct_exhausted:.1%}), "
-        f"{blocks_exhausted} block(s) total"
+        f"Hourly-only retries exhausted: {len(hourly_only)}\n"
+        f"Quarterly-only retries exhausted: {len(quarterly_only)}\n"
+        f"Both (hourly & quarterly) retries exhausted: {len(both)}"
     )
-    csv_content = build_failed_cups_csv(stale_cups, exhausted_cups)
+    csv_content = build_stale_cups_csv(stale_cups)
     notify_discord(message, csv_content=csv_content)
     return ok
 
