@@ -335,6 +335,13 @@ def download_chunk(supply, type_params, status):
     try:
         date_ini_req = status['date_ini_block'].date()
         date_end_req = status['date_end_block'].date()
+        if status.get('date_max') is not None:
+            resume_date = status['date_max'].date() + relativedelta(days=1)
+            if resume_date > date_ini_req:
+                date_ini_req = resume_date
+        if date_ini_req > date_end_req:
+            # Already covered every day in this block - nothing new to request.
+            raise Exception("No data could be found")
         logger.debug(f"Downloading {supply['cups']} from {date_ini_req} to {date_end_req}",
                      extra={"phase": "GATHER"})
         kwargs = parse_arguments(supply, type_params, date_ini_req, date_end_req)
@@ -380,23 +387,25 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
                 # break
                 data = download_chunk(supply, type_params, status)
                 data_df = type_params['parser'](data)
+                new_values = len(data_df)
 
                 logger.info(f"Data block downloaded", extra={"nif": supply['nif'], "cups": supply['cups'],
                                                              "type": data_type, "ini_date": status['date_ini_block'],
-                                                             "total_values": len(data_df), "timestamp": datetime.today()})
+                                                             "new_values": new_values, "timestamp": datetime.today()})
 
-                if len(data_df) == status['values']:
+                if new_values == 0:
                     status['retries'] -= 1
-                if len(data_df) > 0:
+                else:
                     save_datadis_data("", "timeseries", supply['cups'],
                                       data_df, row_keys, dblist, tables, config, property=m_property,
                                       freq=freq)
-                    status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(
-                        pytz.UTC)
+                    if status.get('date_min') is None:
+                        status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(
+                            pytz.UTC)
                     status['date_max'] = pd.to_datetime(data_df[-1]['timestamp'], unit="s"). \
                         tz_localize(pytz.UTC)
+                    status['values'] = status.get('values', 0) + new_values
                     any_data_saved = True
-                status['values'] = len(data_df)
                 downloaded_elems.add((m_property, freq))
 
     # store status info
