@@ -335,13 +335,6 @@ def download_chunk(supply, type_params, status):
     try:
         date_ini_req = status['date_ini_block'].date()
         date_end_req = status['date_end_block'].date()
-        if status.get('date_max') is not None:
-            resume_date = status['date_max'].date() + relativedelta(days=1)
-            if resume_date > date_ini_req:
-                date_ini_req = resume_date
-        if date_ini_req > date_end_req:
-            # Already covered every day in this block - nothing new to request.
-            raise Exception("No data could be found")
         logger.debug(f"Downloading {supply['cups']} from {date_ini_req} to {date_end_req}",
                      extra={"phase": "GATHER"})
         kwargs = parse_arguments(supply, type_params, date_ini_req, date_end_req)
@@ -384,29 +377,27 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
             logger.info(status_list)
 
             for status in status_list:
-                # break
                 data = download_chunk(supply, type_params, status)
                 data_df = type_params['parser'](data)
-                new_values = len(data_df)
+                total_values = len(data_df)
 
                 logger.info(f"Data block downloaded", extra={"nif": supply['nif'], "cups": supply['cups'],
                                                              "type": data_type, "ini_date": status['date_ini_block'],
-                                                             "new_values": new_values, "timestamp": datetime.today()})
+                                                             "total_values": total_values, "timestamp": datetime.today()})
 
-                if new_values == 0:
-                    status['retries'] -= 1
-                else:
+                if total_values > 0:
                     save_datadis_data("", "timeseries", supply['cups'],
                                       data_df, row_keys, dblist, tables, config, property=m_property,
                                       freq=freq)
-                    if status.get('date_min') is None:
-                        status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(
-                            pytz.UTC)
+                    status['date_min'] = pd.to_datetime(data_df[0]['timestamp'], unit="s").tz_localize(
+                        pytz.UTC)
                     status['date_max'] = pd.to_datetime(data_df[-1]['timestamp'], unit="s"). \
                         tz_localize(pytz.UTC)
-                    status['values'] = status.get('values', 0) + new_values
                     any_data_saved = True
-                downloaded_elems.add((m_property, freq))
+                    downloaded_elems.add((m_property, freq))
+                else:
+                    status['retries'] -= 1
+                status['values'] = total_values
 
     # store status info
     if any_data_saved:
