@@ -100,63 +100,56 @@ data_types_dict = {
 }
 
 
+def _fetch_supplies_with_retry(user, authorized_nif, min_count, max_retries, sleep_seconds):
+    attempts = 0
+    supplies = []
+    last_exception = None
+
+    while True:
+        try:
+            supplies = datadis.Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
+            last_exception = None
+        except PermissionError:
+            raise
+        except Exception as e:
+            supplies = []
+            last_exception = e
+
+        if len(supplies) > min_count or attempts >= max_retries:
+            break
+
+        attempts += 1
+        logger.debug(
+            f"Supplies count ({len(supplies)}) is too low. Retrying in {sleep_seconds}s... (Attempt {attempts}/{max_retries})",
+            extra={'user': user, "phase": "GATHER_RETRY", "exception": str(last_exception) if last_exception else None}
+        )
+        time.sleep(sleep_seconds)
+
+    if len(supplies) <= min_count:
+        logger.error(
+            f"CRITICAL: Failed to reach >{min_count} supplies after {max_retries} attempts. Final count: {len(supplies)}",
+            extra={'user': user, "phase": "GATHER_TIMEOUT"}
+        )
+    else:
+        logger.info(
+            f"Successfully gathered supplies",
+            extra={'user': user, "total_supplies": len(supplies), "date": datetime.today(), "phase": "GATHER_SUCCESS"}
+        )
+
+    return supplies
+
+
 def get_devices_from_user_datadis(user, password, authorized_nif):
+    gene_user = "S0811001G"
     try:
         datadis.Datadis.connection(username=user, password=password, timeout=1000)
-        supplies = datadis.Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
-        gene_user = "S0811001G"
 
         if user == gene_user:
-            max_retries = 10
-            sleep_seconds = 5
-            attempts = 0
-
-            while len(supplies) <= 1550 and attempts < max_retries:
-                attempts += 1
-                logger.debug(
-                    f"Supplies count ({len(supplies)}) is too low. Retrying in {sleep_seconds}s... (Attempt {attempts}/{max_retries})",
-                    extra={'user': user, "phase": "GATHER_RETRY"}
-                )
-                time.sleep(sleep_seconds)
-
-                supplies = datadis.Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
-
-            if len(supplies) <= 1550:
-                logger.error(
-                    f"CRITICAL: Failed to reach >1550 supplies after {max_retries} attempts. Final count: {len(supplies)}",
-                    extra={'user': user, "phase": "GATHER_TIMEOUT"}
-                )
-            else:
-                logger.info(
-                    f"Successfully gathered supplies",
-                    extra={'user': user, "total_supplies": len(supplies), "date": datetime.today(), "phase": "GATHER_SUCCESS"}
-                )
+            min_count, max_retries, sleep_seconds = 1550, 10, 5
         else:
-            max_retries = 5
-            sleep_seconds = 5
-            attempts = 0
+            min_count, max_retries, sleep_seconds = 0, 5, 5
 
-            while len(supplies) == 0 and attempts < max_retries:
-                attempts += 1
-                logger.debug(
-                    f"Supplies count ({len(supplies)}) is too low. Retrying in {sleep_seconds}s... (Attempt {attempts}/{max_retries})",
-                    extra={'user': user, "phase": "GATHER_RETRY"}
-                )
-                time.sleep(sleep_seconds)
-
-                supplies = datadis.Datadis.datadis_query(ENDPOINTS.GET_SUPPLIES, authorized_nif=authorized_nif)
-
-            if len(supplies) <= 0:
-                logger.error(
-                    f"CRITICAL: Failed to reach >0 supplies after {max_retries} attempts. Final count: {len(supplies)}",
-                    extra={'user': user, "phase": "GATHER_TIMEOUT"}
-                )
-            else:
-                logger.info(
-                    f"Successfully gathered supplies",
-                    extra={'user': user, "total_supplies": len(supplies), "date": datetime.today(), "phase": "GATHER_SUCCESS"}
-                )
-
+        supplies = _fetch_supplies_with_retry(user, authorized_nif, min_count, max_retries, sleep_seconds)
 
         if not supplies:
             supplies = []
