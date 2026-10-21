@@ -57,6 +57,13 @@ spec:
             env:
               - name: CONF_FILE
                 value: "config.json"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
             volumeMounts:
             - name: datadis-base-secret
               mountPath: /datadis/config.json
@@ -162,6 +169,13 @@ spec:
             env:
               - name: CONF_FILE
                 value: "config.json"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
             volumeMounts:
             - name: datadis-base-secret
               mountPath: /datadis/config.json

@@ -38,6 +38,13 @@ spec:
                   secretKeyRef:
                     name: datadis-discord-webhook
                     key: webhook_url
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
             volumeMounts:
             - name: datadis-base-secret
               mountPath: /datadis/config.json
