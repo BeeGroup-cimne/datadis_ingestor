@@ -64,7 +64,7 @@ spec:
             memory: 1Gi
           limits:
             cpu: "3"
-            memory: 6Gi
+            memory: 10Gi
         volumeMounts:
         - name: datadis-base-secret
           mountPath: /datadis/config.json

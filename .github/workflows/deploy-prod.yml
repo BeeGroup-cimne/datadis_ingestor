@@ -1,0 +1,103 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # --- Infraestructura (igual per tots els environments) ---
+  ECR_REGISTRY: 853583158095.dkr.ecr.eu-west-1.amazonaws.com
+  ECR_REPOSITORY: ecr-beegroup-datadis-ingestor
+  AWS_REGION: eu-west-1
+  EKS_CLUSTER_NAME: eks-pro-beegroup
+  # --- Específic d'aquest environment ---
+  ENV_TAG: prod
+  MANIFESTS: |
+    kubeconfigs/services.yaml
+    kubeconfigs/gather-healthcheck-job.yaml
+    plugins/sime/kubeconfig/harmonizer.yaml
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Get commit SHA
+        id: vars
+        run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ steps.vars.outputs.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.ENV_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:cache
+          cache-to: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:cache,mode=max
+
+      - name: Configure kubeconfig (EKS)
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.EKS_CLUSTER_NAME }} \
+            --region ${{ env.AWS_REGION }}
+        # Prerequisits IAM:
+        #   - Permís eks:DescribeCluster al policy de l'IAM user/role
+        #   - L'IAM ARN afegit al EKS access management (aws-auth ConfigMap o Access Entries)
+        #   - RBAC: permís per apply CronJobs/Deployments als namespaces sime-prod-ingestors i sime-prod-harmonizers
+
+      - name: Apply Kubernetes manifests
+        env:
+          IMAGE_TAG: ${{ steps.vars.outputs.IMAGE_TAG }}
+        run: |
+          FAILED=0
+          while IFS= read -r yaml; do
+            [ -n "$yaml" ] || continue
+            echo "→ Applying $yaml (tag: $IMAGE_TAG)"
+            if ! sed "s|$ECR_REGISTRY/$ECR_REPOSITORY:$ENV_TAG|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" "$yaml" \
+              | kubectl apply -f -; then
+              echo "✗ Error applying $yaml"
+              FAILED=1
+              continue
+            fi
+            # A file can hold several --- documents (e.g. services.yaml has two
+            # CronJobs): check each one by index via yq instead of grepping the
+            # whole file, so a Deployment is never missed just because it shares
+            # a file with other kinds.
+            while IFS=$'\t' read -r kind name ns; do
+              if [ "$kind" = "Deployment" ]; then
+                echo "→ Waiting for rollout: deployment/$name -n $ns"
+                if ! kubectl rollout status deployment/"$name" -n "$ns" --timeout=5m; then
+                  echo "✗ Rollout failed: deployment/$name -n $ns"
+                  FAILED=1
+                fi
+              fi
+            done < <(paste <(yq eval-all '.kind' "$yaml") \
+                           <(yq eval-all '.metadata.name' "$yaml") \
+                           <(yq eval-all '.metadata.namespace' "$yaml"))
+          done <<< "$MANIFESTS"
+          exit $FAILED
+
+      - name: Verify deployment
+        run: |
+          echo "Deployed image tag: ${{ steps.vars.outputs.IMAGE_TAG }}"
+          kubectl get cronjobs -n sime-prod-ingestors
+          kubectl get deployments -n sime-prod-harmonizers
