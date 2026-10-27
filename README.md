@@ -1,9 +1,12 @@
 # Datadis description
 This module will import data from Datadis and harmonize it from different sources.
 
-The following image depicts the workflow of the script.
+The following image depicts the workflow of the script: users are pulled from each plugin's own Neo4j and merged into
+one Redis-queued gather loop backed by Mongo status tracking, then the raw Kafka output forks into two differently-built
+per-client paths - cosmic's sequential Cassandra-then-harmonizer chain, and sime's parallel fan-out where the harmonizer
+reads Kafka directly instead of its own HBase raw store.
 
-<img src="datadis_schema.png">
+<img src="datadis_schema.svg">
 
 Each plugin consists on the configuration of a project source. The datadis users and authorized users will be obtained 
 following the plugin schema. After that, the users will be aggregated together by source depending on the configuration. 

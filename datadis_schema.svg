@@ -1,0 +1,183 @@
+<svg viewBox="0 0 1300 1080" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Datadis ingestor pipeline: two plugins merge into one Redis-queued gather loop backed by Mongo status tracking, then fork at Kafka into two independently-built per-client paths - cosmic's sequential Cassandra-then-harmonizer chain, and sime's parallel fan-out where the harmonizer reads Kafka directly instead of its own HBase raw store.">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowCosmic" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"/>
+    </marker>
+    <marker id="arrowSime" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"/>
+    </marker>
+  </defs>
+
+  <style>
+    .box { fill: #f8fafc; stroke: #475569; stroke-width: 1.5; }
+    .boxCosmic { fill: #fffbeb; stroke: #b45309; stroke-width: 1.5; }
+    .boxSime { fill: #eff6ff; stroke: #1d4ed8; stroke-width: 1.5; }
+    .boxDb { fill: #f1f5f9; stroke: #334155; stroke-width: 1.5; }
+    .lbl { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 12.5px; fill: #1e293b; text-anchor: middle; }
+    .lblSmall { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 10.5px; fill: #475569; text-anchor: middle; }
+    .edge { fill: none; stroke: #475569; stroke-width: 1.5; marker-end: url(#arrow); }
+    .edgeCosmic { fill: none; stroke: #b45309; stroke-width: 1.5; marker-end: url(#arrowCosmic); }
+    .edgeSime { fill: none; stroke: #1d4ed8; stroke-width: 1.5; marker-end: url(#arrowSime); }
+    .edgeLabel { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 10.5px; fill: #334155; text-anchor: middle; }
+    .section { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #0f172a; }
+  </style>
+
+  <!-- ============ SECTION 1: per-plugin user extraction + merge ============ -->
+  <text x="20" y="18" class="section">1. Pull &amp; merge users (two plugins, two Neo4j instances)</text>
+
+  <rect class="boxDb" x="20" y="30" width="150" height="55" rx="4"/>
+  <text class="lbl" x="95" y="53">Neo4j (cosmic)</text>
+  <text class="lblSmall" x="95" y="68">DatadisSource</text>
+
+  <rect class="boxCosmic" x="210" y="30" width="160" height="55" rx="4"/>
+  <text class="lbl" x="290" y="53">cosmic</text>
+  <text class="lblSmall" x="290" y="68">get_users()</text>
+
+  <rect class="boxDb" x="20" y="140" width="150" height="55" rx="4"/>
+  <text class="lbl" x="95" y="163">Neo4j (sime)</text>
+  <text class="lblSmall" x="95" y="178">DatadisSource</text>
+
+  <rect class="boxSime" x="210" y="140" width="160" height="55" rx="4"/>
+  <text class="lbl" x="290" y="163">sime</text>
+  <text class="lblSmall" x="290" y="178">get_users()</text>
+
+  <line class="edge" x1="170" y1="57.5" x2="205" y2="57.5"/>
+  <line class="edge" x1="170" y1="167.5" x2="205" y2="167.5"/>
+
+  <rect class="box" x="420" y="85" width="170" height="65" rx="4"/>
+  <text class="lbl" x="505" y="110">merge + dedupe</text>
+  <text class="lblSmall" x="505" y="125">(username, password,</text>
+  <text class="lblSmall" x="505" y="138">authorized_nif, self)</text>
+
+  <polyline class="edge" points="370,57.5 400,57.5 400,117.5 415,117.5"/>
+  <polyline class="edge" points="370,167.5 400,167.5 400,117.5 415,117.5"/>
+
+  <rect class="box" x="640" y="85" width="150" height="65" rx="4"/>
+  <text class="lbl" x="715" y="112">Redis</text>
+  <text class="lblSmall" x="715" y="128">users queue</text>
+  <text class="lblSmall" x="715" y="141">(lpush / rpop)</text>
+
+  <line class="edge" x1="590" y1="117.5" x2="635" y2="117.5"/>
+
+  <!-- ============ SECTION 2: Redis-queued gather loop, Mongo status ============ -->
+  <text x="20" y="245" class="section">2. Gather loop: two Redis queues, one Mongo status ledger per CUPS block</text>
+
+  <rect class="box" x="420" y="270" width="180" height="65" rx="4"/>
+  <text class="lbl" x="510" y="297">consumer:</text>
+  <text class="lbl" x="510" y="312">GET_SUPPLIES</text>
+
+  <polyline class="edge" points="715,150 715,210 510,210 510,265"/>
+
+  <rect class="box" x="650" y="270" width="150" height="65" rx="4"/>
+  <text class="lbl" x="725" y="295">Redis</text>
+  <text class="lblSmall" x="725" y="311">devices queue</text>
+  <text class="lblSmall" x="725" y="324">(batches of 10)</text>
+
+  <line class="edge" x1="600" y1="302.5" x2="645" y2="302.5"/>
+
+  <rect class="box" x="850" y="270" width="210" height="65" rx="4"/>
+  <text class="lbl" x="955" y="293">consumer: GET_CONSUMPTION</text>
+  <text class="lbl" x="955" y="308">/ GET_MAX_POWER</text>
+  <text class="lblSmall" x="955" y="323">(per incomplete block)</text>
+
+  <line class="edge" x1="800" y1="302.5" x2="845" y2="302.5"/>
+
+  <rect class="boxDb" x="560" y="410" width="260" height="70" rx="4"/>
+  <text class="lbl" x="690" y="433">Mongo: datadis_devices</text>
+  <text class="lblSmall" x="690" y="449">values / total / retries</text>
+  <text class="lblSmall" x="690" y="462">per CUPS block</text>
+
+  <line class="edge" x1="510" y1="335" x2="640" y2="405"/>
+  <line class="edge" x1="955" y1="335" x2="790" y2="405"/>
+  <text class="edgeLabel" x="545" y="375">status r/w</text>
+  <text class="edgeLabel" x="900" y="375">status r/w</text>
+
+  <rect class="box" x="1090" y="240" width="180" height="55" rx="4"/>
+  <text class="lbl" x="1180" y="262">Kafka:</text>
+  <text class="lblSmall" x="1180" y="277">datadis.cosmichbase</text>
+
+  <rect class="box" x="1090" y="320" width="180" height="55" rx="4"/>
+  <text class="lbl" x="1180" y="342">Kafka: static + ts</text>
+  <text class="lblSmall" x="1180" y="357">topics (sime)</text>
+
+  <line class="edge" x1="1060" y1="290" x2="1085" y2="267.5"/>
+  <line class="edge" x1="1060" y1="315" x2="1085" y2="347.5"/>
+  <text class="edgeLabel" x="1075" y="300">per-plugin</text>
+  <text class="edgeLabel" x="1075" y="312">topic (plug.topic)</text>
+
+  <!-- ============ SECTION 3: diverging per-client paths ============ -->
+  <text x="20" y="483" class="section">3. Two different builds past Kafka - not a shared "store raw" + "harmonize" pair</text>
+
+  <!-- cosmic: sequential chain, raw store gates the harmonizer -->
+  <rect class="boxCosmic" x="60" y="520" width="240" height="55" rx="4"/>
+  <text class="lbl" x="180" y="543">raw-store-cosmic-prod</text>
+  <text class="lblSmall" x="180" y="558">Kafka consumer group</text>
+
+  <rect class="boxDb" x="60" y="610" width="240" height="55" rx="4"/>
+  <text class="lbl" x="180" y="633">Cassandra</text>
+  <text class="lblSmall" x="180" y="648">raw_datadis_ts_* (hash, year, ts)</text>
+
+  <rect class="boxCosmic" x="60" y="700" width="240" height="65" rx="4"/>
+  <text class="lbl" x="180" y="723">cosmic-harmonizer</text>
+  <text class="lblSmall" x="180" y="738">PT1H / PT15M jobs</text>
+  <text class="lblSmall" x="180" y="751">(reads Cassandra, not Kafka)</text>
+
+  <rect class="box" x="60" y="800" width="240" height="55" rx="4"/>
+  <text class="lbl" x="180" y="822">Kafka: cosmic.influx</text>
+  <text class="lblSmall" x="180" y="837">hash / property / freq tags</text>
+
+  <rect class="box" x="60" y="890" width="240" height="55" rx="4"/>
+  <text class="lbl" x="180" y="912">Telegraf</text>
+  <text class="lblSmall" x="180" y="927">null-fills missing value -&gt; is_null=1</text>
+
+  <rect class="boxDb" x="60" y="980" width="240" height="55" rx="4"/>
+  <text class="lbl" x="180" y="1012">InfluxDB (bucket: cosmic)</text>
+
+  <line class="edgeCosmic" x1="180" y1="575" x2="180" y2="605"/>
+  <line class="edgeCosmic" x1="180" y1="665" x2="180" y2="695"/>
+  <line class="edgeCosmic" x1="180" y1="765" x2="180" y2="795"/>
+  <line class="edgeCosmic" x1="180" y1="855" x2="180" y2="885"/>
+  <line class="edgeCosmic" x1="180" y1="945" x2="180" y2="975"/>
+  <polyline class="edgeCosmic" points="1270,267.5 1290,267.5 1290,495 180,495 180,515"/>
+
+  <!-- sime: two independent consumers of the same topic, no raw-store dependency -->
+  <rect class="boxSime" x="400" y="520" width="220" height="55" rx="4"/>
+  <text class="lbl" x="510" y="543">raw-store-sime-prod</text>
+  <text class="lblSmall" x="510" y="558">(x9 replicas)</text>
+
+  <rect class="boxDb" x="400" y="610" width="220" height="55" rx="4"/>
+  <text class="lbl" x="510" y="638">HBase (raw ts)</text>
+
+  <rect class="boxSime" x="700" y="520" width="260" height="65" rx="4"/>
+  <text class="lbl" x="830" y="543">sime-harmonizer</text>
+  <text class="lblSmall" x="830" y="558">plugins.sime worker</text>
+  <text class="lblSmall" x="830" y="571">reads Kafka directly, not HBase</text>
+
+  <rect class="boxDb" x="700" y="615" width="260" height="55" rx="4"/>
+  <text class="lbl" x="830" y="638">Neo4j: Sensor + Measurement</text>
+  <text class="lblSmall" x="830" y="653">metadata (save_to_neo4j)</text>
+
+  <rect class="box" x="700" y="700" width="260" height="55" rx="4"/>
+  <text class="lbl" x="830" y="722">Kafka: harmonized topic</text>
+  <text class="lblSmall" x="830" y="737">same shape as cosmic.influx</text>
+
+  <rect class="box" x="700" y="790" width="260" height="55" rx="4"/>
+  <text class="lbl" x="830" y="812">Telegraf-equivalent</text>
+  <text class="lblSmall" x="830" y="827">consumer (same pattern)</text>
+
+  <rect class="boxDb" x="700" y="880" width="260" height="55" rx="4"/>
+  <text class="lbl" x="830" y="912">InfluxDB (sime)</text>
+
+  <line class="edgeSime" x1="510" y1="575" x2="510" y2="605"/>
+  <line class="edgeSime" x1="830" y1="585" x2="830" y2="610"/>
+  <line class="edgeSime" x1="830" y1="670" x2="830" y2="695"/>
+  <line class="edgeSime" x1="830" y1="755" x2="830" y2="785"/>
+  <line class="edgeSime" x1="830" y1="845" x2="830" y2="875"/>
+  <polyline class="edgeSime" points="1270,350 1288,350 1288,503 830,503 830,515"/>
+  <polyline class="edgeSime" points="1270,347.5 1290,347.5 1290,511 510,511 510,515"/>
+  <text class="edgeLabel" x="1000" y="481" fill="#1d4ed8">one topic, two independent consumers</text>
+</svg>
