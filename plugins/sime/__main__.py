@@ -28,6 +28,7 @@ def main():
     consumer.subscribe(topics=conf['kafka']['topics'])
 
     while True:
+        beelib.beeheartbeat.beat()
         raw_records = consumer.consumer.consume(100, 10)
 
         if len(raw_records) > 0:
