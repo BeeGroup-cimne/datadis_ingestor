@@ -1,5 +1,5 @@
-<svg viewBox="0 0 1300 1080" xmlns="http://www.w3.org/2000/svg" role="img"
-     aria-label="Datadis ingestor pipeline: two plugins merge into one Redis-queued gather loop backed by Mongo status tracking, then fork at Kafka into two independently-built per-client paths - cosmic's sequential Cassandra-then-harmonizer chain, and sime's parallel fan-out where the harmonizer reads Kafka directly instead of its own HBase raw store.">
+<svg viewBox="0 0 900 1400" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Datadis ingestor pipeline, drawn top to bottom: two plugins converge into one Redis-queued gather loop with Mongo status tracking beside the trunk, then the Kafka push forks into two independently-built per-client paths - cosmic's sequential Cassandra-then-harmonizer chain, and sime's parallel fan-out where the harmonizer reads Kafka directly instead of its own HBase raw store.">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
@@ -26,158 +26,152 @@
     .section { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #0f172a; }
   </style>
 
-  <!-- ============ SECTION 1: per-plugin user extraction + merge ============ -->
-  <text x="20" y="18" class="section">1. Pull &amp; merge users (two plugins, two Neo4j instances)</text>
+  <!-- ============ SECTION 1: two plugins converge into one trunk ============ -->
+  <text x="20" y="18" class="section">1. Merge users</text>
 
-  <rect class="boxDb" x="20" y="30" width="150" height="55" rx="4"/>
-  <text class="lbl" x="95" y="53">Neo4j (cosmic)</text>
-  <text class="lblSmall" x="95" y="68">DatadisSource</text>
+  <rect class="boxDb" x="40" y="30" width="200" height="50" rx="4"/>
+  <text class="lbl" x="140" y="51">Neo4j (cosmic)</text>
+  <text class="lblSmall" x="140" y="66">DatadisSource</text>
 
-  <rect class="boxCosmic" x="210" y="30" width="160" height="55" rx="4"/>
-  <text class="lbl" x="290" y="53">cosmic</text>
-  <text class="lblSmall" x="290" y="68">get_users()</text>
+  <rect class="boxCosmic" x="40" y="110" width="200" height="50" rx="4"/>
+  <text class="lbl" x="140" y="133">cosmic get_users()</text>
 
-  <rect class="boxDb" x="20" y="140" width="150" height="55" rx="4"/>
-  <text class="lbl" x="95" y="163">Neo4j (sime)</text>
-  <text class="lblSmall" x="95" y="178">DatadisSource</text>
+  <rect class="boxDb" x="300" y="30" width="200" height="50" rx="4"/>
+  <text class="lbl" x="400" y="51">Neo4j (sime)</text>
+  <text class="lblSmall" x="400" y="66">DatadisSource</text>
 
-  <rect class="boxSime" x="210" y="140" width="160" height="55" rx="4"/>
-  <text class="lbl" x="290" y="163">sime</text>
-  <text class="lblSmall" x="290" y="178">get_users()</text>
+  <rect class="boxSime" x="300" y="110" width="200" height="50" rx="4"/>
+  <text class="lbl" x="400" y="133">sime get_users()</text>
 
-  <line class="edge" x1="170" y1="57.5" x2="205" y2="57.5"/>
-  <line class="edge" x1="170" y1="167.5" x2="205" y2="167.5"/>
+  <line class="edge" x1="140" y1="80" x2="140" y2="105"/>
+  <line class="edge" x1="400" y1="80" x2="400" y2="105"/>
 
-  <rect class="box" x="420" y="85" width="170" height="65" rx="4"/>
-  <text class="lbl" x="505" y="110">merge + dedupe</text>
-  <text class="lblSmall" x="505" y="125">(username, password,</text>
-  <text class="lblSmall" x="505" y="138">authorized_nif, self)</text>
+  <rect class="box" x="170" y="210" width="200" height="65" rx="4"/>
+  <text class="lbl" x="270" y="235">merge + dedupe</text>
+  <text class="lblSmall" x="270" y="250">(username, password,</text>
+  <text class="lblSmall" x="270" y="263">authorized_nif, self)</text>
 
-  <polyline class="edge" points="370,57.5 400,57.5 400,117.5 415,117.5"/>
-  <polyline class="edge" points="370,167.5 400,167.5 400,117.5 415,117.5"/>
+  <line class="edge" x1="140" y1="160" x2="222" y2="205"/>
+  <line class="edge" x1="400" y1="160" x2="318" y2="205"/>
 
-  <rect class="box" x="640" y="85" width="150" height="65" rx="4"/>
-  <text class="lbl" x="715" y="112">Redis</text>
-  <text class="lblSmall" x="715" y="128">users queue</text>
-  <text class="lblSmall" x="715" y="141">(lpush / rpop)</text>
+  <rect class="box" x="180" y="310" width="180" height="65" rx="4"/>
+  <text class="lbl" x="270" y="335">Redis</text>
+  <text class="lblSmall" x="270" y="351">users queue</text>
+  <text class="lblSmall" x="270" y="364">(lpush / rpop)</text>
 
-  <line class="edge" x1="590" y1="117.5" x2="635" y2="117.5"/>
+  <line class="edge" x1="270" y1="275" x2="270" y2="305"/>
 
-  <!-- ============ SECTION 2: Redis-queued gather loop, Mongo status ============ -->
-  <text x="20" y="245" class="section">2. Gather loop: two Redis queues, one Mongo status ledger per CUPS block</text>
+  <!-- ============ SECTION 2: vertical gather loop, Mongo beside the trunk ============ -->
+  <text x="20" y="405" class="section">2. Gather loop, Mongo status, Kafka push</text>
 
-  <rect class="box" x="420" y="270" width="180" height="65" rx="4"/>
-  <text class="lbl" x="510" y="297">consumer:</text>
-  <text class="lbl" x="510" y="312">GET_SUPPLIES</text>
+  <rect class="box" x="180" y="430" width="180" height="65" rx="4"/>
+  <text class="lbl" x="270" y="457">consumer:</text>
+  <text class="lbl" x="270" y="472">GET_SUPPLIES</text>
 
-  <polyline class="edge" points="715,150 715,210 510,210 510,265"/>
+  <line class="edge" x1="270" y1="375" x2="270" y2="425"/>
 
-  <rect class="box" x="650" y="270" width="150" height="65" rx="4"/>
-  <text class="lbl" x="725" y="295">Redis</text>
-  <text class="lblSmall" x="725" y="311">devices queue</text>
-  <text class="lblSmall" x="725" y="324">(batches of 10)</text>
+  <rect class="box" x="180" y="530" width="180" height="65" rx="4"/>
+  <text class="lbl" x="270" y="555">Redis</text>
+  <text class="lblSmall" x="270" y="571">devices queue</text>
+  <text class="lblSmall" x="270" y="584">(batches of 10)</text>
 
-  <line class="edge" x1="600" y1="302.5" x2="645" y2="302.5"/>
+  <line class="edge" x1="270" y1="495" x2="270" y2="525"/>
 
-  <rect class="box" x="850" y="270" width="210" height="65" rx="4"/>
-  <text class="lbl" x="955" y="293">consumer: GET_CONSUMPTION</text>
-  <text class="lbl" x="955" y="308">/ GET_MAX_POWER</text>
-  <text class="lblSmall" x="955" y="323">(per incomplete block)</text>
+  <rect class="box" x="160" y="630" width="220" height="75" rx="4"/>
+  <text class="lbl" x="270" y="653">consumer: GET_CONSUMPTION</text>
+  <text class="lbl" x="270" y="668">/ GET_MAX_POWER</text>
+  <text class="lblSmall" x="270" y="683">(per incomplete block)</text>
 
-  <line class="edge" x1="800" y1="302.5" x2="845" y2="302.5"/>
+  <line class="edge" x1="270" y1="595" x2="270" y2="625"/>
 
-  <rect class="boxDb" x="560" y="410" width="260" height="70" rx="4"/>
-  <text class="lbl" x="690" y="433">Mongo: datadis_devices</text>
-  <text class="lblSmall" x="690" y="449">values / total / retries</text>
-  <text class="lblSmall" x="690" y="462">per CUPS block</text>
+  <rect class="boxDb" x="440" y="545" width="220" height="90" rx="4"/>
+  <text class="lbl" x="550" y="570">Mongo: datadis_devices</text>
+  <text class="lblSmall" x="550" y="586">values / total / retries</text>
+  <text class="lblSmall" x="550" y="599">per CUPS block</text>
 
-  <line class="edge" x1="510" y1="335" x2="640" y2="405"/>
-  <line class="edge" x1="955" y1="335" x2="790" y2="405"/>
-  <text class="edgeLabel" x="545" y="375">status r/w</text>
-  <text class="edgeLabel" x="900" y="375">status r/w</text>
+  <line class="edge" x1="360" y1="462.5" x2="435" y2="570"/>
+  <line class="edge" x1="380" y1="667.5" x2="435" y2="610"/>
 
-  <rect class="box" x="1090" y="240" width="180" height="55" rx="4"/>
-  <text class="lbl" x="1180" y="262">Kafka:</text>
-  <text class="lblSmall" x="1180" y="277">datadis.cosmichbase</text>
+  <rect class="box" x="50" y="740" width="190" height="55" rx="4"/>
+  <text class="lbl" x="145" y="762">Kafka:</text>
+  <text class="lblSmall" x="145" y="777">datadis.cosmichbase</text>
 
-  <rect class="box" x="1090" y="320" width="180" height="55" rx="4"/>
-  <text class="lbl" x="1180" y="342">Kafka: static + ts</text>
-  <text class="lblSmall" x="1180" y="357">topics (sime)</text>
+  <rect class="box" x="280" y="740" width="190" height="55" rx="4"/>
+  <text class="lbl" x="375" y="762">Kafka: static + ts</text>
+  <text class="lblSmall" x="375" y="777">topics (sime)</text>
 
-  <line class="edge" x1="1060" y1="290" x2="1085" y2="267.5"/>
-  <line class="edge" x1="1060" y1="315" x2="1085" y2="347.5"/>
-  <text class="edgeLabel" x="1075" y="300">per-plugin</text>
-  <text class="edgeLabel" x="1075" y="312">topic (plug.topic)</text>
+  <line class="edge" x1="220" y1="705" x2="155" y2="735"/>
+  <line class="edge" x1="320" y1="705" x2="365" y2="735"/>
 
   <!-- ============ SECTION 3: diverging per-client paths ============ -->
-  <text x="20" y="483" class="section">3. Two different builds past Kafka - not a shared "store raw" + "harmonize" pair</text>
+  <text x="20" y="718" class="section">3. Diverges per client</text>
+
+  <line class="edgeCosmic" x1="145" y1="795" x2="145" y2="825"/>
+  <line class="edgeSime" x1="375" y1="795" x2="375" y2="825"/>
+  <line class="edgeSime" x1="375" y1="795" x2="620" y2="825"/>
 
   <!-- cosmic: sequential chain, raw store gates the harmonizer -->
-  <rect class="boxCosmic" x="60" y="520" width="240" height="55" rx="4"/>
-  <text class="lbl" x="180" y="543">raw-store-cosmic-prod</text>
-  <text class="lblSmall" x="180" y="558">Kafka consumer group</text>
+  <rect class="boxCosmic" x="30" y="830" width="230" height="55" rx="4"/>
+  <text class="lbl" x="145" y="853">raw-store-cosmic-prod</text>
+  <text class="lblSmall" x="145" y="868">Kafka consumer group</text>
 
-  <rect class="boxDb" x="60" y="610" width="240" height="55" rx="4"/>
-  <text class="lbl" x="180" y="633">Cassandra</text>
-  <text class="lblSmall" x="180" y="648">raw_datadis_ts_* (hash, year, ts)</text>
+  <rect class="boxDb" x="30" y="920" width="230" height="55" rx="4"/>
+  <text class="lbl" x="145" y="943">Cassandra</text>
+  <text class="lblSmall" x="145" y="958">raw_datadis_ts_* (hash, year, ts)</text>
 
-  <rect class="boxCosmic" x="60" y="700" width="240" height="65" rx="4"/>
-  <text class="lbl" x="180" y="723">cosmic-harmonizer</text>
-  <text class="lblSmall" x="180" y="738">PT1H / PT15M jobs</text>
-  <text class="lblSmall" x="180" y="751">(reads Cassandra, not Kafka)</text>
+  <rect class="boxCosmic" x="30" y="1010" width="230" height="65" rx="4"/>
+  <text class="lbl" x="145" y="1033">cosmic-harmonizer</text>
+  <text class="lblSmall" x="145" y="1048">PT1H / PT15M jobs</text>
+  <text class="lblSmall" x="145" y="1061">(reads Cassandra, not Kafka)</text>
 
-  <rect class="box" x="60" y="800" width="240" height="55" rx="4"/>
-  <text class="lbl" x="180" y="822">Kafka: cosmic.influx</text>
-  <text class="lblSmall" x="180" y="837">hash / property / freq tags</text>
+  <rect class="box" x="30" y="1110" width="230" height="55" rx="4"/>
+  <text class="lbl" x="145" y="1132">Kafka: cosmic.influx</text>
+  <text class="lblSmall" x="145" y="1147">hash / property / freq tags</text>
 
-  <rect class="box" x="60" y="890" width="240" height="55" rx="4"/>
-  <text class="lbl" x="180" y="912">Telegraf</text>
-  <text class="lblSmall" x="180" y="927">null-fills missing value -&gt; is_null=1</text>
+  <rect class="box" x="30" y="1200" width="230" height="55" rx="4"/>
+  <text class="lbl" x="145" y="1222">Telegraf</text>
+  <text class="lblSmall" x="145" y="1237">null-fills missing value -&gt; is_null=1</text>
 
-  <rect class="boxDb" x="60" y="980" width="240" height="55" rx="4"/>
-  <text class="lbl" x="180" y="1012">InfluxDB (bucket: cosmic)</text>
+  <rect class="boxDb" x="30" y="1290" width="230" height="55" rx="4"/>
+  <text class="lbl" x="145" y="1322">InfluxDB (bucket: cosmic)</text>
 
-  <line class="edgeCosmic" x1="180" y1="575" x2="180" y2="605"/>
-  <line class="edgeCosmic" x1="180" y1="665" x2="180" y2="695"/>
-  <line class="edgeCosmic" x1="180" y1="765" x2="180" y2="795"/>
-  <line class="edgeCosmic" x1="180" y1="855" x2="180" y2="885"/>
-  <line class="edgeCosmic" x1="180" y1="945" x2="180" y2="975"/>
-  <polyline class="edgeCosmic" points="1270,267.5 1290,267.5 1290,495 180,495 180,515"/>
+  <line class="edgeCosmic" x1="145" y1="885" x2="145" y2="915"/>
+  <line class="edgeCosmic" x1="145" y1="975" x2="145" y2="1005"/>
+  <line class="edgeCosmic" x1="145" y1="1075" x2="145" y2="1105"/>
+  <line class="edgeCosmic" x1="145" y1="1165" x2="145" y2="1195"/>
+  <line class="edgeCosmic" x1="145" y1="1255" x2="145" y2="1285"/>
 
   <!-- sime: two independent consumers of the same topic, no raw-store dependency -->
-  <rect class="boxSime" x="400" y="520" width="220" height="55" rx="4"/>
-  <text class="lbl" x="510" y="543">raw-store-sime-prod</text>
-  <text class="lblSmall" x="510" y="558">(x9 replicas)</text>
+  <rect class="boxSime" x="280" y="830" width="190" height="55" rx="4"/>
+  <text class="lbl" x="375" y="853">raw-store-sime-prod</text>
+  <text class="lblSmall" x="375" y="868">(x9 replicas)</text>
 
-  <rect class="boxDb" x="400" y="610" width="220" height="55" rx="4"/>
-  <text class="lbl" x="510" y="638">HBase (raw ts)</text>
+  <rect class="boxDb" x="280" y="920" width="190" height="55" rx="4"/>
+  <text class="lbl" x="375" y="948">HBase (raw ts)</text>
 
-  <rect class="boxSime" x="700" y="520" width="260" height="65" rx="4"/>
-  <text class="lbl" x="830" y="543">sime-harmonizer</text>
-  <text class="lblSmall" x="830" y="558">plugins.sime worker</text>
-  <text class="lblSmall" x="830" y="571">reads Kafka directly, not HBase</text>
+  <rect class="boxSime" x="490" y="830" width="260" height="65" rx="4"/>
+  <text class="lbl" x="620" y="853">sime-harmonizer</text>
+  <text class="lblSmall" x="620" y="868">plugins.sime worker</text>
+  <text class="lblSmall" x="620" y="881">reads Kafka directly, not HBase</text>
 
-  <rect class="boxDb" x="700" y="615" width="260" height="55" rx="4"/>
-  <text class="lbl" x="830" y="638">Neo4j: Sensor + Measurement</text>
-  <text class="lblSmall" x="830" y="653">metadata (save_to_neo4j)</text>
+  <rect class="boxDb" x="490" y="925" width="260" height="55" rx="4"/>
+  <text class="lbl" x="620" y="948">Neo4j: Sensor + Measurement</text>
+  <text class="lblSmall" x="620" y="963">metadata (save_to_neo4j)</text>
 
-  <rect class="box" x="700" y="700" width="260" height="55" rx="4"/>
-  <text class="lbl" x="830" y="722">Kafka: harmonized topic</text>
-  <text class="lblSmall" x="830" y="737">same shape as cosmic.influx</text>
+  <rect class="box" x="490" y="1010" width="260" height="55" rx="4"/>
+  <text class="lbl" x="620" y="1032">Kafka: harmonized topic</text>
+  <text class="lblSmall" x="620" y="1047">same shape as cosmic.influx</text>
 
-  <rect class="box" x="700" y="790" width="260" height="55" rx="4"/>
-  <text class="lbl" x="830" y="812">Telegraf-equivalent</text>
-  <text class="lblSmall" x="830" y="827">consumer (same pattern)</text>
+  <rect class="box" x="490" y="1100" width="260" height="55" rx="4"/>
+  <text class="lbl" x="620" y="1122">Telegraf-equivalent</text>
+  <text class="lblSmall" x="620" y="1137">consumer (same pattern)</text>
 
-  <rect class="boxDb" x="700" y="880" width="260" height="55" rx="4"/>
-  <text class="lbl" x="830" y="912">InfluxDB (sime)</text>
+  <rect class="boxDb" x="490" y="1190" width="260" height="55" rx="4"/>
+  <text class="lbl" x="620" y="1222">InfluxDB (sime)</text>
 
-  <line class="edgeSime" x1="510" y1="575" x2="510" y2="605"/>
-  <line class="edgeSime" x1="830" y1="585" x2="830" y2="610"/>
-  <line class="edgeSime" x1="830" y1="670" x2="830" y2="695"/>
-  <line class="edgeSime" x1="830" y1="755" x2="830" y2="785"/>
-  <line class="edgeSime" x1="830" y1="845" x2="830" y2="875"/>
-  <polyline class="edgeSime" points="1270,350 1288,350 1288,503 830,503 830,515"/>
-  <polyline class="edgeSime" points="1270,347.5 1290,347.5 1290,511 510,511 510,515"/>
-  <text class="edgeLabel" x="1000" y="481" fill="#1d4ed8">one topic, two independent consumers</text>
+  <line class="edgeSime" x1="375" y1="885" x2="375" y2="915"/>
+  <line class="edgeSime" x1="620" y1="895" x2="620" y2="920"/>
+  <line class="edgeSime" x1="620" y1="980" x2="620" y2="1005"/>
+  <line class="edgeSime" x1="620" y1="1065" x2="620" y2="1095"/>
+  <line class="edgeSime" x1="620" y1="1155" x2="620" y2="1185"/>
 </svg>
