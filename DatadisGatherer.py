@@ -17,6 +17,7 @@ logger = logging.getLogger()
 
 TZ = pytz.timezone("Europe/Madrid")
 
+MAX_STALE_ATTEMPTS = 6
 
 def parse_max_power_chunk(max_power):
     if len(max_power) <= 0:
@@ -214,6 +215,7 @@ def get_mongo_info(supply, datadis_devices):
                         "values": 0,
                         "total": type_params['elements_in_period'](date_ini_block, date_end_block),
                         "retries": 6,
+                        "stale_attempts": 0,
                     }
                 })
             loop_date_ini = current_end + relativedelta(seconds=1)
@@ -366,6 +368,7 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
 
             status_list = [x for x in device[type_params["mongo_collection"]].values()
                            if x['values'] < x['total'] and x['retries'] > 0 and
+                           x.get('stale_attempts', 0) < MAX_STALE_ATTEMPTS and
                            x['date_ini_block'] > datetime.today() - relativedelta(years=1, months=11, day=1, hour=0, minute=0, second=0, microsecond=0)]
             logger.info(status_list)
 
@@ -388,6 +391,11 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
                         tz_localize(pytz.UTC)
                     any_data_saved = True
                     downloaded_elems.add((m_property, freq))
+                    # Progress resets the counter; a flat or regressing result increments it.
+                    if total_values > status.get('values', 0):
+                        status['stale_attempts'] = 0
+                    else:
+                        status['stale_attempts'] = status.get('stale_attempts', 0) + 1
                 else:
                     status['retries'] -= 1
                 status['values'] = total_values

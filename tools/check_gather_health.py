@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 LOOKBACK_HOURS = float(os.getenv("LOOKBACK_HOURS", "50"))
 HEALTHY_THRESHOLD_PCT = float(os.getenv("HEALTHY_THRESHOLD_PCT", "0.95"))
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+MAX_STALE_ATTEMPTS = 6
 
 config = beelib.beeconfig.read_config("config.json")
 
@@ -66,6 +67,30 @@ def find_exhausted_retry_cups(collection):
     return hourly - both, quarterly - both, both
 
 
+def _has_plateaued_block(doc, field):
+    return any(
+        block.get("stale_attempts", 0) >= MAX_STALE_ATTEMPTS and block.get("values", 0) < block.get("total", 0)
+        for block in (doc.get(field) or {}).values()
+    )
+
+
+def find_plateaued_cups(collection):
+    """CUPS with a data_1h and/or data_15m block whose `values` has stopped improving across
+    MAX_STALE_ATTEMPTS consecutive attempts while still incomplete - a block that is permanently
+    stuck (e.g. a one-off outage gap) rather than fully exhausted on `retries` (see
+    find_exhausted_retry_cups). Returns (hourly_only, quarterly_only, both), same shape as
+    find_exhausted_retry_cups."""
+    hourly = set()
+    quarterly = set()
+    for doc in collection.find({}, {"data_1h": 1, "data_15m": 1}):
+        if _has_plateaued_block(doc, "data_1h"):
+            hourly.add(doc["_id"])
+        if _has_plateaued_block(doc, "data_15m"):
+            quarterly.add(doc["_id"])
+    both = hourly & quarterly
+    return hourly - both, quarterly - both, both
+
+
 def build_stale_cups_csv(stale_cups):
     if not stale_cups:
         return None
@@ -86,6 +111,7 @@ def check_gather_health():
     total = collection.count_documents({})
 
     hourly_only, quarterly_only, both = find_exhausted_retry_cups(collection)
+    plateaued_hourly_only, plateaued_quarterly_only, plateaued_both = find_plateaued_cups(collection)
 
     # last_data_saved_at only gets set when a chunk actually returned new values (DatadisGatherer.py's
     # download_device()) - unlike a plain "was this device touched" timestamp, this can't be faked by
@@ -104,6 +130,9 @@ def check_gather_health():
     print(f"Hourly-only retries exhausted: {len(hourly_only)}")
     print(f"Quarterly-only retries exhausted: {len(quarterly_only)}")
     print(f"Both (hourly & quarterly) retries exhausted: {len(both)}")
+    print(f"Hourly-only plateaued: {len(plateaued_hourly_only)}")
+    print(f"Quarterly-only plateaued: {len(plateaued_quarterly_only)}")
+    print(f"Both (hourly & quarterly) plateaued: {len(plateaued_both)}")
 
     ok = pct_fresh >= HEALTHY_THRESHOLD_PCT
     icon = "✅" if ok else "\U0001F6A8"
@@ -115,7 +144,10 @@ def check_gather_health():
         f"No new data: {len(stale_cups)}\n"
         f"Hourly-only retries exhausted: {len(hourly_only)}\n"
         f"Quarterly-only retries exhausted: {len(quarterly_only)}\n"
-        f"Both (hourly & quarterly) retries exhausted: {len(both)}"
+        f"Both (hourly & quarterly) retries exhausted: {len(both)}\n"
+        f"Hourly-only plateaued: {len(plateaued_hourly_only)}\n"
+        f"Quarterly-only plateaued: {len(plateaued_quarterly_only)}\n"
+        f"Both (hourly & quarterly) plateaued: {len(plateaued_both)}"
     )
     csv_content = build_stale_cups_csv(stale_cups)
     notify_discord(message, csv_content=csv_content)

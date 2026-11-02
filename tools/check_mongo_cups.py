@@ -2,6 +2,8 @@ import pymongo
 import beelib
 from pprint import pprint
 
+MAX_STALE_ATTEMPTS = 6
+
 # 1. Load your credentials (replace these with your actual config file loading if needed)
 config = beelib.beeconfig.read_config("config.json")
 mongo = config['mongo']
@@ -24,14 +26,14 @@ def check_cups_state(cups_id):
 
     # 4. Analyze and print the tracking state
     if not device:
-        print(f"❌ CUPS {cups_id} does not exist in the database.")
+        print(f"CUPS {cups_id} does not exist in the database.")
         return
 
-    print(f"✅ Found device: {cups_id}")
+    print(f"Found device: {cups_id}")
 
     # Check if contract data is present (indicates the Kafka consumer has touched it)
     if 'startDate' in device or 'marketer' in device:
-        print("⚠️ Contract data is present in this document.")
+        print("Contract data is present in this document.")
 
     print("\n" + "=" * 40)
     print(" TRACKING STATE ANALYSIS ")
@@ -52,24 +54,27 @@ def check_cups_state(cups_id):
                 v = status.get('values', 0)
                 t = status.get('total', 0)
                 r = status.get('retries', 0)
+                sa = status.get('stale_attempts', 0)
 
                 # Highlight incomplete chunks
                 if v == 0:
-                    status_marker = "🔴 EMPTY"
+                    status_marker = "EMPTY"
+                elif v < t and sa >= MAX_STALE_ATTEMPTS:
+                    status_marker = "PLATEAUED (given up)"
                 elif v < t:
-                    status_marker = "🟡 PARTIAL"
+                    status_marker = "PARTIAL"
                 else:
-                    status_marker = "🟢 COMPLETE"
+                    status_marker = "COMPLETE"
 
-                print(f"{status_marker} | {date_range} | Values: {v}/{t} | Retries left: {r}")
+                print(f"{status_marker} | {date_range} | Values: {v}/{t} | Retries left: {r} | Stale attempts: {sa}")
         else:
-            print(f"\n❌ {tk.upper()} is completely MISSING from this document.")
+            print(f"\n{tk.upper()} is completely MISSING from this document.")
 
     if not found_tracking:
         print(
-            "\n🚨 CONCLUSION: All tracking state is missing. If this CUPS was downloaded previously, the state has been overwritten.")
+            "\nCONCLUSION: All tracking state is missing. If this CUPS was downloaded previously, the state has been overwritten.")
     else:
-        print("\n✅ CONCLUSION: Tracking state exists. The script should not redownload COMPLETE blocks.")
+        print("\nCONCLUSION: Tracking state exists. The script should not redownload COMPLETE blocks.")
 
 
 if __name__ == "__main__":
