@@ -5,11 +5,13 @@ metadata:
   namespace: sime-prod-ingestors
 spec:
   suspend: false
-  # Runs daily (the real gather cycle in services.yaml only fires every ~2 days and
-  # takes ~2h to finish) - see the note at the top of tools/check_gather_health.py for
-  # why a daily check with a wide lookback is simpler/more robust than trying to mirror
-  # the producer/consumer's own */2 day-of-month schedule across midnight.
-  schedule: "0 6 * * *"
+  # Runs daily (the real gather cycle in services.yaml only fires every ~2 days) - see the
+  # note at the top of tools/check_gather_health.py for why a daily check with a wide
+  # lookback is simpler/more robust than trying to mirror the producer/consumer's own
+  # */2 day-of-month schedule across midnight.
+  # Consumer starts 22:10 Europe/Madrid; observed runtime has ranged ~4h-10h, so 08:00
+  # gives real slack past even a slow run.
+  schedule: "0 8 * * *"
   timeZone: "Europe/Madrid"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
