@@ -148,7 +148,7 @@ def get_devices_from_user_datadis(user, password, authorized_nif):
         if user == gene_user:
             min_count, max_retries, sleep_seconds = 1550, 10, 5
         else:
-            min_count, max_retries, sleep_seconds = 0, 5, 5
+            min_count, max_retries, sleep_seconds = 0, 10, 5
 
         supplies = _fetch_supplies_with_retry(user, authorized_nif, min_count, max_retries, sleep_seconds)
 

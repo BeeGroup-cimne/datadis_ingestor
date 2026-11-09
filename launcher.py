@@ -5,10 +5,13 @@ import pickle
 import beelib
 import dotenv
 import plugins
+import pymongo
 import logging
 import argparse
+import traceback
 import pandas as pd
 from itertools import chain
+from datetime import datetime
 from pythonjsonlogger import jsonlogger
 from DatadisGatherer import get_devices_from_user_datadis, get_data, send_final_message
 
@@ -18,6 +21,39 @@ logHandler = logging.StreamHandler()
 formatter = jsonlogger.JsonFormatter('%(asctime)s - %(levelname)s - %(name)s: %(message)s')
 logHandler.setFormatter(formatter)
 logger.addHandler(logHandler)
+
+# Durable, in-cluster-independent diagnostics: sime-prod-ingestors isn't routed to Loki/CloudWatch
+# yet (fluent-bit only ships icat-prod/dev-ingestors so far), and failed Job pods here have been
+# observed to get garbage-collected before anyone can `kubectl logs` them - so a crash leaves no
+# trace anywhere. This writes checkpoints straight to Mongo (a dependency we already have and
+# control) instead, surviving regardless of pod lifecycle or log-routing rollout status.
+RUN_ID = f"{os.getenv('HOSTNAME', 'unknown')}"
+
+
+def record_run_event(config, launcher_type, phase, **extra):
+    """Append a timestamped breadcrumb for this pod's run. Never allowed to raise - a failure
+    recording diagnostics must not affect the actual gather logic."""
+    try:
+        mongo = pymongo.MongoClient(
+            f"mongodb://{config['mongo']['user']}:{config['mongo']['password']}@"
+            f"{config['mongo']['host']}:{config['mongo']['port']}/{config['mongo']['database']}?authSource=admin",
+            serverSelectionTimeoutMS=5000,
+        )
+        db = mongo[config['mongo']['database']]
+        collection = db['gather_runs']
+        event = {"phase": phase, "timestamp": datetime.utcnow()}
+        event.update(extra)
+        collection.update_one(
+            {"_id": RUN_ID},
+            {
+                "$push": {"events": event},
+                "$setOnInsert": {"launcher_type": launcher_type, "started_at": datetime.utcnow()},
+            },
+            upsert=True,
+        )
+        mongo.close()
+    except Exception as e:
+        logger.error(f"Failed to record run event", extra={"phase": "DIAGNOSTICS", "exception": str(e)})
 
 def merge_dicts(dicts):
     """Merge or collect dicts safely even if they contain lists."""
@@ -109,6 +145,7 @@ def get_users(config):
 
 
 def sync_processors(config, num_processes, barrier_id):
+    record_run_event(config, "consumer", "BARRIER_ENTER", barrier_id=barrier_id)
     red = redis.Redis(**config['redis']['connection'])
     red.incr(barrier_id)
     logger.debug(f"Waiting for other processes to finish", extra={'phase': "WAIT"})
@@ -116,6 +153,7 @@ def sync_processors(config, num_processes, barrier_id):
         print(f'Number of processes done: {n}')
         time.sleep(0.2)
     logger.debug(f"Other processes done, execution will continue", extra={'phase': "WAIT"})
+    record_run_event(config, "consumer", "BARRIER_EXIT", barrier_id=barrier_id)
     time.sleep(0.4)
     red.delete(barrier_id)
 
@@ -204,12 +242,21 @@ if __name__ == "__main__":
         args = ap.parse_args(["-l", "producer", "-n", "1"])
     else:
         args = ap.parse_args()
-        if args.launcher == 'producer':
-            get_users(config)
-        elif args.launcher == 'consumer':
-            sync_processors(config, int(args.num_processors), config['redis']['dev_tickets'])
-            get_datadis_devices(config)
-            sync_processors(config, int(args.num_processors), config['redis']['data_tickets'])
-            get_datadis_data(config)
-            send_final_message(config)
-            logger.info(f"WORKER FINISHED", extra={'phase': "END"})
+        record_run_event(config, args.launcher, "START", num_processors=args.num_processors)
+        try:
+            if args.launcher == 'producer':
+                get_users(config)
+            elif args.launcher == 'consumer':
+                sync_processors(config, int(args.num_processors), config['redis']['dev_tickets'])
+                get_datadis_devices(config)
+                sync_processors(config, int(args.num_processors), config['redis']['data_tickets'])
+                get_datadis_data(config)
+                send_final_message(config)
+                logger.info(f"WORKER FINISHED", extra={'phase': "END"})
+            record_run_event(config, args.launcher, "FINISHED")
+        except BaseException as e:
+            # BaseException (not just Exception) so this also catches SystemExit/KeyboardInterrupt -
+            # whatever is about to kill this process, record it first. Pods here get garbage-collected
+            # fast and logs aren't routed anywhere yet, so this may be the only surviving trace.
+            record_run_event(config, args.launcher, "CRASHED", exception=str(e), traceback=traceback.format_exc())
+            raise
