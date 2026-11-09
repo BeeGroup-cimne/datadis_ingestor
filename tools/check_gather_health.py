@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 # day after a "quiet" (no-run-scheduled) day. Detection of a fully-failed cycle can lag
 # by up to a day - that's an acceptable trade-off for a lightweight freshness check.
 LOOKBACK_HOURS = float(os.getenv("LOOKBACK_HOURS", "50"))
-HEALTHY_THRESHOLD_PCT = float(os.getenv("HEALTHY_THRESHOLD_PCT", "0.95"))
+HEALTHY_THRESHOLD_PCT = float(os.getenv("HEALTHY_THRESHOLD_PCT", "0.975"))
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 MAX_STALE_ATTEMPTS = 6
 
@@ -155,5 +155,7 @@ def check_gather_health():
 
 
 if __name__ == "__main__":
-    ok = check_gather_health()
-    sys.exit(0 if ok else 1)
+    # Always exit 0: the healthy/unhealthy state is already surfaced via the Discord message
+    # (icon + "healthy"/"FAILED" text), so there's nothing a k8s-level Job "Failed" status adds
+    # beyond noise - it doesn't represent a crash, just a reported metric that's below threshold.
+    check_gather_health()
