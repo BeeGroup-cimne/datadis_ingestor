@@ -9,3 +9,13 @@ ssh_push.sh
 *csv
 *.jsonl
 _/*
+
+# Local scratch / data files - not part of the project
+*.xlsx
+testing*
+test_*.py
+testing_*.py
+upload_*.py
+execute
+*_cosmic.json
+plugins/sime/__main__?.py

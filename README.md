@@ -40,6 +40,26 @@ you can start the consumers with:
 python3 launcher.py -p last -l consumer
 ```
 
+### Retries and plateau detection
+
+Each CUPS' progress is tracked in Mongo as a set of date-range "blocks" (per `data_1h`, `data_15m` and
+`max_power`), each holding `values`/`total`/`retries`/`stale_attempts`. Two independent mechanisms decide
+whether an incomplete block is attempted again on the next consumer run:
+
+- **`retries`**: decremented only when an attempt returns zero new rows. Once it reaches 0, the block is
+  exhausted and never attempted again - this is the right behavior for a supply that genuinely has no data
+  for that range (e.g. it didn't exist yet).
+- **`stale_attempts`**: increments when an attempt returns data but doesn't improve on the previous attempt's
+  `values` count, and resets to 0 the moment an attempt does improve. Once it reaches `MAX_STALE_ATTEMPTS`
+  (6 consecutive non-improving attempts), the block is treated as **plateaued** and excluded from further
+  retries - independently of `retries`, which a partially-successful attempt never touches.
+
+This distinguishes a block that's still genuinely catching up (`stale_attempts` kept resetting) from one
+that's permanently stuck a few rows short (e.g. a real one-off outage leaving a small gap) and would
+otherwise be retried forever with no way to stop. Both states are surfaced in `tools/check_mongo_cups.py`
+(per-CUPS status, marked `PLATEAUED (given up)`) and reported as separate counts in the daily Discord
+healthcheck (`tools/check_gather_health.py`).
+
 ## Harmonize data
 
 To harmonize the gathered data, each source will need to implement their own harmonizer.

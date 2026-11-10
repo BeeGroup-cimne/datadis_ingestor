@@ -189,3 +189,13 @@ poetry.toml
 pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+
+# Local scratch / data files - not part of the project
+*.xlsx
+testing*/
+test_*.py
+testing_*.py
+upload_*.py
+execute
+*_cosmic.json
+plugins/sime/__main__?.py
