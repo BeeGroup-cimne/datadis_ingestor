@@ -6,6 +6,7 @@ metadata:
 spec:
   suspend: false
   schedule: "0 22 */2 * *"
+  timeZone: "Europe/Madrid"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
@@ -115,6 +116,7 @@ metadata:
 spec:
   suspend: false
   schedule: "10 22 */2 * *"
+  timeZone: "Europe/Madrid"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
