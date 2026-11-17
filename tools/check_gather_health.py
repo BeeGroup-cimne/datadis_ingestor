@@ -16,6 +16,7 @@ LOOKBACK_HOURS = float(os.getenv("LOOKBACK_HOURS", "50"))
 HEALTHY_THRESHOLD_PCT = float(os.getenv("HEALTHY_THRESHOLD_PCT", "0.975"))
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 MAX_STALE_ATTEMPTS = 6
+KEEP_RUNS = 4
 
 config = beelib.beeconfig.read_config("config.json")
 
@@ -88,6 +89,20 @@ def count_plateaued_blocks(collection):
     return hourly_blocks, quarterly_blocks
 
 
+def prune_old_gather_runs(db, keep_runs=KEEP_RUNS):
+    """`gather_runs` is a pure diagnostic breadcrumb trail (launcher.py's record_run_event) with
+    no TTL - left alone it grows by ~11 docs every cycle forever. Keeps only the `keep_runs` most
+    recent distinct calendar days that have any docs (a run's ~11 pods all start within seconds
+    of each other, so grouping by day is enough - no need to parse the `_id`'s job/pod suffix,
+    which isn't uniformly formatted between the starter and consumer launcher types anyway)."""
+    coll = db['gather_runs']
+    dates = sorted({d.date() for d in coll.distinct('started_at')}, reverse=True)
+    if len(dates) <= keep_runs:
+        return 0
+    cutoff = datetime.combine(dates[keep_runs - 1], datetime.min.time())
+    return coll.delete_many({"started_at": {"$lt": cutoff}}).deleted_count
+
+
 def build_stale_cups_csv(stale_cups):
     if not stale_cups:
         return None
@@ -103,6 +118,10 @@ def check_gather_health():
     )
     db = mongo[config['mongo']['database']]
     collection = db[config['mongo']['collection']]
+
+    pruned = prune_old_gather_runs(db, KEEP_RUNS)
+    if pruned:
+        print(f"Pruned {pruned} gather_runs docs older than the last {KEEP_RUNS} runs")
 
     cutoff = datetime.utcnow() - timedelta(hours=LOOKBACK_HOURS)
     total = collection.count_documents({})
@@ -144,8 +163,9 @@ def check_gather_health():
         f"Hourly plateaued blocks: {plateaued_hourly_blocks}\n"
         f"Quarterly plateaued blocks: {plateaued_quarterly_blocks}"
     )
-    csv_content = build_stale_cups_csv(stale_cups)
-    notify_discord(message, csv_content=csv_content)
+    if not ok:
+        csv_content = build_stale_cups_csv(stale_cups)
+        notify_discord(message, csv_content=csv_content)
     return ok
 
 
