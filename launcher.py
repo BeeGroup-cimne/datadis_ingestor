@@ -1,6 +1,5 @@
 import os
 import time
-import redis
 import pickle
 import beelib
 import dotenv
@@ -13,6 +12,7 @@ import pandas as pd
 from itertools import chain
 from datetime import datetime
 from pythonjsonlogger import jsonlogger
+from beelib import beeredis
 from DatadisGatherer import get_devices_from_user_datadis, get_data, send_final_message
 
 logger = logging.getLogger()
@@ -54,6 +54,16 @@ def record_run_event(config, launcher_type, phase, **extra):
         mongo.close()
     except Exception as e:
         logger.error(f"Failed to record run event", extra={"phase": "DIAGNOSTICS", "exception": str(e)})
+
+def get_redis(config):
+    """beeredis.connect_redis expects its arg's only keys to be 'connection' and (for Sentinel
+    mode) 'master_name' - anything else leaks into the Sentinel/master_for() kwargs - so this
+    reshapes config['redis'] (which also carries queue-name keys) into that exact shape."""
+    return beeredis.connect_redis({
+        'connection': config['redis']['connection'],
+        'master_name': config['redis'].get('master_name'),
+    })
+
 
 def merge_dicts(dicts):
     """Merge or collect dicts safely even if they contain lists."""
@@ -129,7 +139,7 @@ def get_users(config):
     logger.info("Starting the ingestor", extra={'phase': "START"})
 
     logger.debug("Getting users from plugins", extra={'phase': "GATHER"})
-    red = redis.Redis(**config['redis']['connection'])
+    red = get_redis(config)
     red.delete(config['redis']['users'])
     red.delete(config['redis']['devices'])
     red.delete(config['redis']['dev_tickets'])
@@ -146,7 +156,7 @@ def get_users(config):
 
 def sync_processors(config, num_processes, barrier_id):
     record_run_event(config, "consumer", "BARRIER_ENTER", barrier_id=barrier_id)
-    red = redis.Redis(**config['redis']['connection'])
+    red = get_redis(config)
     red.incr(barrier_id)
     logger.debug(f"Waiting for other processes to finish", extra={'phase': "WAIT"})
     while (n := int(red.get(barrier_id))) < num_processes:
@@ -159,7 +169,7 @@ def sync_processors(config, num_processes, barrier_id):
 
 
 def get_datadis_devices(config):
-    red = redis.Redis(**config['redis']['connection'])
+    red = get_redis(config)
     s = time.time()
     logger.debug("Starting devices retrieval", extra={'phase': 'GATHER'})
     while True:
@@ -217,7 +227,7 @@ def get_datadis_devices(config):
 
 
 def get_datadis_data(config):
-    red = redis.Redis(**config['redis']['connection'])
+    red = get_redis(config)
     s = time.time()
     logger.debug("Starting data retrieval", extra={'phase': 'GATHER'})
     while True:
