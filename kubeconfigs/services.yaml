@@ -174,10 +174,10 @@ spec:
             resources:
               requests:
                 cpu: 100m
-                memory: 256Mi
+                memory: 768Mi
               limits:
                 cpu: 500m
-                memory: 1.5Gi
+                memory: 2Gi
             volumeMounts:
             - name: datadis-base-secret
               mountPath: /datadis/config.json

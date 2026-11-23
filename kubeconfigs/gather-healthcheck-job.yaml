@@ -56,3 +56,24 @@ spec:
           imagePullSecrets:
           - name: odin1pullsecret
 
+# One-time setup:
+#
+#   1. Create a Discord webhook (Server Settings > Integrations > Webhooks in the
+#      channel you want alerts in), then store its URL as a k8s Secret:
+#        kubectl create secret generic datadis-discord-webhook \
+#          --from-literal=webhook_url='https://discord.com/api/webhooks/...' \
+#          -n sime-prod-ingestors
+#
+#   2. Rebuild/push the image so it has the last_updated field (DatadisGatherer.py)
+#      and this script (tools/check_gather_health.py):
+#        TAG=$(git rev-parse --short HEAD)
+#        docker buildx build --platform linux/amd64,linux/arm64 --push \
+#          -t 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:prod \
+#          -t 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:$TAG .
+#
+#   3. Deploy the CronJob:
+#        kubectl apply -f kubeconfigs/gather-healthcheck-job.yaml
+#
+#   4. To test it immediately instead of waiting for the schedule:
+#        kubectl create job --from=cronjob/datadis-gather-healthcheck datadis-gather-healthcheck-manual -n sime-prod-ingestors
+#        kubectl logs -f job/datadis-gather-healthcheck-manual -n sime-prod-ingestors
