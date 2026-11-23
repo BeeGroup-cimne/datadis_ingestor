@@ -1,6 +1,7 @@
 import os
 import time
 import pickle
+import resource
 import beelib
 import dotenv
 import plugins
@@ -226,10 +227,14 @@ def get_datadis_devices(config):
     logger.debug(f"Devices retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
 
 
+HEARTBEAT_INTERVAL = 50
+
+
 def get_datadis_data(config):
     red = get_redis(config)
     s = time.time()
     logger.debug("Starting data retrieval", extra={'phase': 'GATHER'})
+    processed = 0
     while True:
         item = red.lpop(config['redis']['devices'])
         if not item:
@@ -238,6 +243,13 @@ def get_datadis_data(config):
 
         get_data(item_map['user'], item_map['password'], item_map['authorized_nif'],
                     item_map['db_list'], item_map['supplies'], item_map['tables'], item_map['row_keys'], config)
+        processed += 1
+        if processed % HEARTBEAT_INTERVAL == 0:
+            # This loop can run for hours with no other breadcrumb in between - a hard kill
+            # (OOM, node eviction) here leaves no CRASHED event (SIGKILL skips the except
+            # block entirely), so the last HEARTBEAT is the only trace of how far a pod got.
+            record_run_event(config, "consumer", "HEARTBEAT", devices_processed=processed,
+                              peak_rss_mb=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024)
     logger.debug(f"Data retrieval took: {time.time()-s} seconds", extra={'phase': 'GATHER'})
 
 
