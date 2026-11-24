@@ -356,6 +356,19 @@ def send_final_message(config):
         producer.send(settings.TOPIC_STATIC, value=data, partition=part)
 
 
+def _is_eligible_for_download(block, recheck_plateaued):
+    """Normal runs skip a block once it has plateaued (stale_attempts >= MAX_STALE_ATTEMPTS)
+    to avoid hammering a gap Datadis isn't filling - but that filter never resets on its own,
+    so a block that plateaus stays skipped forever even if Datadis later backfills it. The
+    monthly plateau-recheck run flips this filter to target exactly those blocks instead; the
+    existing values/stale_attempts bookkeeping below already only un-plateaus a block when a
+    probe actually returns more data than before, so no extra reset logic is needed here."""
+    if block['values'] >= block['total'] or block['retries'] <= 0:
+        return False
+    stale = block.get('stale_attempts', 0)
+    return stale >= MAX_STALE_ATTEMPTS if recheck_plateaued else stale < MAX_STALE_ATTEMPTS
+
+
 def download_device(supply, device, datadis_devices, dblist, tables, row_keys, config):
     downloaded_elems = set()
     any_data_saved = False
@@ -366,10 +379,10 @@ def download_device(supply, device, datadis_devices, dblist, tables, row_keys, c
             # get all incomplete chunks
             logger.info(device[type_params["mongo_collection"]].values())
 
+            cutoff_date = datetime.today() - relativedelta(years=1, months=11, day=1, hour=0, minute=0, second=0, microsecond=0)
             status_list = [x for x in device[type_params["mongo_collection"]].values()
-                           if x['values'] < x['total'] and x['retries'] > 0 and
-                           x.get('stale_attempts', 0) < MAX_STALE_ATTEMPTS and
-                           x['date_ini_block'] > datetime.today() - relativedelta(years=1, months=11, day=1, hour=0, minute=0, second=0, microsecond=0)]
+                           if _is_eligible_for_download(x, config.get('plateau_recheck', False)) and
+                           x['date_ini_block'] > cutoff_date]
             logger.info(status_list)
 
             for status in status_list:

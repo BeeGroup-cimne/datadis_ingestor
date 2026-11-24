@@ -264,7 +264,19 @@ if __name__ == "__main__":
         args = ap.parse_args(["-l", "producer", "-n", "1"])
     else:
         args = ap.parse_args()
-        record_run_event(config, args.launcher, "START", num_processors=args.num_processors)
+
+        # The monthly plateau-recheck CronJob runs the exact same producer/consumer flow against
+        # the exact same Datadis accounts, so it must not share queue/barrier keys with a regular
+        # run that happens to be in flight - suffixing them keeps the two fully isolated even if
+        # their schedules ever overlap, without needing a separate config file.
+        launcher_type = args.launcher
+        if os.getenv("GATHER_MODE") == "plateau_recheck":
+            config['plateau_recheck'] = True
+            for key in ("users", "devices", "dev_tickets", "data_tickets"):
+                config['redis'][key] += ".recheck"
+            launcher_type = f"{args.launcher}-recheck"
+
+        record_run_event(config, launcher_type, "START", num_processors=args.num_processors)
         try:
             if args.launcher == 'producer':
                 get_users(config)
@@ -275,10 +287,10 @@ if __name__ == "__main__":
                 get_datadis_data(config)
                 send_final_message(config)
                 logger.info(f"WORKER FINISHED", extra={'phase': "END"})
-            record_run_event(config, args.launcher, "FINISHED")
+            record_run_event(config, launcher_type, "FINISHED")
         except BaseException as e:
             # BaseException (not just Exception) so this also catches SystemExit/KeyboardInterrupt -
             # whatever is about to kill this process, record it first. Pods here get garbage-collected
             # fast and logs aren't routed anywhere yet, so this may be the only surviving trace.
-            record_run_event(config, args.launcher, "CRASHED", exception=str(e), traceback=traceback.format_exc())
+            record_run_event(config, launcher_type, "CRASHED", exception=str(e), traceback=traceback.format_exc())
             raise

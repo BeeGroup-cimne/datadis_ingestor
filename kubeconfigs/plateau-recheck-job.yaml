@@ -1,0 +1,241 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: datadis-plateau-recheck-starter
+  namespace: sime-prod-ingestors
+spec:
+  suspend: false
+  schedule: "0 9 1 * *"
+  timeZone: "Europe/Madrid"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            logger: datadis-logger
+          annotations:
+            "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
+        spec:
+          hostAliases:
+          - ip: "10.0.88.76"
+            hostnames:
+            - "master1.internal"
+          - ip: "10.0.87.95"
+            hostnames:
+              - "master2.internal"
+          - ip: "10.0.88.132"
+            hostnames:
+              - "worker1.internal"
+          - ip: "10.0.86.33"
+            hostnames:
+              - "worker2.internal"
+          - ip: "10.0.87.145"
+            hostnames:
+              - "worker3.internal"
+          - ip: "10.0.86.214"
+            hostnames:
+              - "worker4.internal"
+          - ip: "10.0.129.220"
+            hostnames:
+              - "kafka1.internal"
+          - ip: "10.0.88.175"
+            hostnames:
+              - "database1-vpn"
+          - ip: "10.0.88.151"
+            hostnames:
+              - "database2-vpn"
+          - ip: "10.0.87.50"
+            hostnames:
+              - "database3-vpn"
+          containers:
+          - name: datadis-plateau-recheck-starter
+            image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:prod
+            imagePullPolicy: Always
+            command: ["python3", "launcher.py", "-l", "producer", "-n", "10"]
+            env:
+              - name: CONF_FILE
+                value: "config.json"
+              - name: GATHER_MODE
+                value: "plateau_recheck"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
+            volumeMounts:
+            - name: datadis-base-secret
+              mountPath: /datadis/config.json
+              subPath: config.json
+            - name: datadis-plugins-secret
+              mountPath: /datadis/plugins/secrets/
+            - name: kafka-secret
+              mountPath: /datadis/ca.crt
+              subPath: ca.crt
+            - name: kafka-user-secret
+              mountPath: /datadis/user.crt
+              subPath: user.crt
+            - name: kafka-user-secret
+              mountPath: /datadis/user.key
+              subPath: user.key
+          volumes:
+          - name: datadis-base-secret
+            secret:
+              secretName: datadis-base-secret
+              items:
+              - key: config.json
+                path: config.json
+          - name: datadis-plugins-secret
+            secret:
+              secretName: datadis-plugins-secret
+          - name: kafka-secret
+            secret:
+              secretName: strimzi-cluster-cluster-ca-cert
+              items:
+                - key: ca.crt
+                  path: ca.crt
+          - name: kafka-user-secret
+            secret:
+              secretName: admin-user
+              items:
+                - key: user.crt
+                  path: user.crt
+                - key: user.key
+                  path: user.key
+          restartPolicy: Never
+          imagePullSecrets:
+          - name: odin1pullsecret
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: datadis-plateau-recheck-consumer
+  namespace: sime-prod-ingestors
+spec:
+  suspend: false
+  schedule: "10 9 1 * *"
+  timeZone: "Europe/Madrid"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      completions: 10
+      parallelism: 10
+      completionMode: Indexed
+      template:
+        metadata:
+          labels:
+            logger: datadis-logger
+          annotations:
+            "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
+        spec:
+          hostAliases:
+          - ip: "10.0.88.76"
+            hostnames:
+            - "master1.internal"
+          - ip: "10.0.87.95"
+            hostnames:
+              - "master2.internal"
+          - ip: "10.0.88.132"
+            hostnames:
+              - "worker1.internal"
+          - ip: "10.0.86.33"
+            hostnames:
+              - "worker2.internal"
+          - ip: "10.0.87.145"
+            hostnames:
+              - "worker3.internal"
+          - ip: "10.0.86.214"
+            hostnames:
+              - "worker4.internal"
+          - ip: "10.0.129.220"
+            hostnames:
+              - "kafka1.internal"
+          - ip: "10.0.88.175"
+            hostnames:
+              - "database1-vpn"
+          - ip: "10.0.88.151"
+            hostnames:
+              - "database2-vpn"
+          - ip: "10.0.87.50"
+            hostnames:
+              - "database3-vpn"
+          containers:
+          - name: datadis-plateau-recheck-consumer
+            image: 853583158095.dkr.ecr.eu-west-1.amazonaws.com/ecr-beegroup-datadis-ingestor:prod
+            imagePullPolicy: Always
+            command: ["python3", "launcher.py", "-l", "consumer", "-n", "10"]
+            env:
+              - name: CONF_FILE
+                value: "config.json"
+              - name: GATHER_MODE
+                value: "plateau_recheck"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 768Mi
+              limits:
+                cpu: 500m
+                memory: 2Gi
+            volumeMounts:
+            - name: datadis-base-secret
+              mountPath: /datadis/config.json
+              subPath: config.json
+            - name: datadis-plugins-secret
+              mountPath: /datadis/plugins/secrets/
+            - name: kafka-secret
+              mountPath: /datadis/ca.crt
+              subPath: ca.crt
+            - name: kafka-user-secret
+              mountPath: /datadis/user.crt
+              subPath: user.crt
+            - name: kafka-user-secret
+              mountPath: /datadis/user.key
+              subPath: user.key
+          volumes:
+          - name: datadis-base-secret
+            secret:
+              secretName: datadis-base-secret
+              items:
+              - key: config.json
+                path: config.json
+          - name: datadis-plugins-secret
+            secret:
+              secretName: datadis-plugins-secret
+          - name: kafka-secret
+            secret:
+              secretName: strimzi-cluster-cluster-ca-cert
+              items:
+                - key: ca.crt
+                  path: ca.crt
+          - name: kafka-user-secret
+            secret:
+              secretName: admin-user
+              items:
+                - key: user.crt
+                  path: user.crt
+                - key: user.key
+                  path: user.key
+          restartPolicy: Never
+          imagePullSecrets:
+          - name: odin1pullsecret
+
+# This CronJob pair mirrors kubeconfigs/services.yaml (starter + consumer) but runs monthly
+# instead of every 2 days, and sets GATHER_MODE=plateau_recheck so launcher.py/DatadisGatherer.py
+# target only blocks that have plateaued (data_1h/data_15m blocks with stale_attempts >=
+# MAX_STALE_ATTEMPTS, still under their retries budget) instead of the normal incomplete-block
+# selection. See DatadisGatherer.py's _is_eligible_for_download and launcher.py's GATHER_MODE
+# handling. Redis queue/barrier keys get a ".recheck" suffix so this can never collide with a
+# regular run even if schedules overlap - no separate config/secret needed.
+#
+# Deploy: kubectl apply -f kubeconfigs/plateau-recheck-job.yaml
+#
+# To test immediately instead of waiting for the schedule:
+#   kubectl create job --from=cronjob/datadis-plateau-recheck-starter datadis-plateau-recheck-starter-manual -n sime-prod-ingestors
+#   # wait for it to complete, then:
+#   kubectl create job --from=cronjob/datadis-plateau-recheck-consumer datadis-plateau-recheck-consumer-manual -n sime-prod-ingestors
