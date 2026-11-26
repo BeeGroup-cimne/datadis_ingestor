@@ -130,7 +130,7 @@ spec:
           labels:
             logger: datadis-logger
           annotations:
-            "cluster-autoscaler.kubernetes.io/safe-to-evict": "false"
+            "karpenter.sh/do-not-disrupt": "true"
         spec:
           hostAliases:
           - ip: "10.0.88.76"
